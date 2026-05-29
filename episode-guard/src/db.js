@@ -39,12 +39,9 @@ function initSchema(db) {
 // ── Settings ──────────────────────────────────────────────────────────────
 
 export const SETTING_DEFAULTS = {
-  poll_interval_seconds:    '300',
-  lookahead_episodes:       '5',
-  season_end_buffer:        '3',
-  backfill_mode:            'current_season',  // 'current_season' | 'all'
-  sonarr_quality_profile_id:'1',
-  sonarr_root_folder:       '/tv',
+  poll_interval_seconds: '300',
+  lookahead_episodes:    '5',
+  season_end_buffer:     '3',
 };
 
 export function getSetting(key) {

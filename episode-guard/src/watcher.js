@@ -1,11 +1,8 @@
 import { getPlayingEpisodes, getRecentlyWatchedEpisodes } from './tautulli.js';
 import {
   findSeriesByTvdbId,
-  lookupSeriesByTitle,
-  addSeries,
   ensureUpcomingEpisodes,
   checkSeasonEndAndPreload,
-  monitorFromSeason,
 } from './sonarr.js';
 import { getSetting, logEvent } from './db.js';
 
@@ -89,25 +86,11 @@ async function runWatcher() {
     const label = `"${showTitle}" S${pad(season)}E${pad(episode)}`;
 
     try {
-      let series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
+      const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
 
       if (!series) {
-        const results = await lookupSeriesByTitle(showTitle);
-        const match = results?.[0];
-        if (!match) {
-          console.warn(`[watcher] Cannot find ${label} in Sonarr lookup — skipping`);
-          continue;
-        }
-        series = await findSeriesByTvdbId(match.tvdbId);
-
-        if (!series) {
-          console.log(`[watcher] Adding ${label} to Sonarr`);
-          series = await addSeries(match.tvdbId);
-          logEvent({ event_type: 'show_added', show_title: showTitle, season, episode });
-
-          await monitorFromSeason(series.id, season);
-          logEvent({ event_type: 'season_monitored', show_title: showTitle, season, details: { reason: 'auto_add' } });
-        }
+        console.warn(`[watcher] ${label} not found in Sonarr — skipping`);
+        continue;
       }
 
       const cacheKey = `${series.id}-S${season}E${episode}`;

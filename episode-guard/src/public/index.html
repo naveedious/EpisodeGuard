@@ -174,24 +174,6 @@
           <div class="hint">Episodes from finale to trigger next-season pre-monitor.</div>
           <input type="number" id="s-buffer" min="1" max="20">
         </div>
-        <div class="field">
-          <label>Backfill Mode</label>
-          <div class="hint">When adding a new show, which seasons to monitor.</div>
-          <select id="s-backfill">
-            <option value="current_season">Current season onwards</option>
-            <option value="all">All seasons</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Sonarr Quality Profile ID</label>
-          <div class="hint">Used when auto-adding new shows. Find at: /api/v3/qualityprofile</div>
-          <input type="number" id="s-quality" min="1">
-        </div>
-        <div class="field">
-          <label>Sonarr Root Folder</label>
-          <div class="hint">Root folder path for auto-added shows.</div>
-          <input type="text" id="s-root" placeholder="/tv">
-        </div>
         <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Settings</button>
         <div class="toast" id="toast"></div>
       </div>
@@ -318,12 +300,9 @@
   async function loadSettings() {
     const res = await fetch('/api/settings');
     const s = await res.json();
-    document.getElementById('s-poll').value     = s.poll_interval_seconds;
+    document.getElementById('s-poll').value      = s.poll_interval_seconds;
     document.getElementById('s-lookahead').value = s.lookahead_episodes;
-    document.getElementById('s-buffer').value   = s.season_end_buffer;
-    document.getElementById('s-backfill').value = s.backfill_mode;
-    document.getElementById('s-quality').value  = s.sonarr_quality_profile_id;
-    document.getElementById('s-root').value     = s.sonarr_root_folder;
+    document.getElementById('s-buffer').value    = s.season_end_buffer;
   }
 
   async function saveSettings() {
@@ -332,12 +311,9 @@
     btn.disabled = true;
 
     const payload = {
-      poll_interval_seconds:    document.getElementById('s-poll').value,
-      lookahead_episodes:       document.getElementById('s-lookahead').value,
-      season_end_buffer:        document.getElementById('s-buffer').value,
-      backfill_mode:            document.getElementById('s-backfill').value,
-      sonarr_quality_profile_id: document.getElementById('s-quality').value,
-      sonarr_root_folder:       document.getElementById('s-root').value,
+      poll_interval_seconds: document.getElementById('s-poll').value,
+      lookahead_episodes:    document.getElementById('s-lookahead').value,
+      season_end_buffer:     document.getElementById('s-buffer').value,
     };
 
     try {

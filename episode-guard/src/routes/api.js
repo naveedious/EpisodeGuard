@@ -48,9 +48,6 @@ router.post('/settings', (req, res) => {
     'poll_interval_seconds',
     'lookahead_episodes',
     'season_end_buffer',
-    'backfill_mode',
-    'sonarr_quality_profile_id',
-    'sonarr_root_folder',
   ];
 
   const updates = {};
@@ -63,7 +60,7 @@ router.post('/settings', (req, res) => {
   }
 
   // Validate numerics
-  const numerics = ['poll_interval_seconds', 'lookahead_episodes', 'season_end_buffer', 'sonarr_quality_profile_id'];
+  const numerics = ['poll_interval_seconds', 'lookahead_episodes', 'season_end_buffer'];
   for (const key of numerics) {
     if (updates[key] !== undefined) {
       const n = parseInt(updates[key], 10);
