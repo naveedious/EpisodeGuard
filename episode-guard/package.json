@@ -1,0 +1,14 @@
+{
+  "name": "episode-guard",
+  "version": "2.0.0",
+  "description": "Monitors Tautulli for playing TV episodes and ensures Sonarr has upcoming episodes ready",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "better-sqlite3": "^9.6.0"
+  }
+}

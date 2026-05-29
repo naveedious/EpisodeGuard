@@ -1,0 +1,24 @@
+services:
+  episode-guard:
+    build: .
+    image: episode-guard:latest
+    container_name: episode-guard
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - episode-guard-data:/data
+    environment:
+      # ── Required ────────────────────────────────────────────────────────
+      TAUTULLI_URL: ${TAUTULLI_URL}
+      TAUTULLI_API_KEY: ${TAUTULLI_API_KEY}
+      SONARR_URL: ${SONARR_URL}
+      SONARR_API_KEY: ${SONARR_API_KEY}
+      # ── Web UI auth (required) ───────────────────────────────────────────
+      WEB_USERNAME: ${WEB_USERNAME}
+      WEB_PASSWORD: ${WEB_PASSWORD}
+      # ── Optional ────────────────────────────────────────────────────────
+      DATA_DIR: /data
+
+volumes:
+  episode-guard-data:
