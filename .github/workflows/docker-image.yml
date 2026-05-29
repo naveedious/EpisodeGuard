@@ -1,0 +1,30 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [ "main" ] # Triggers on push to main branch
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: [actions/checkout](https://github.com/actions/checkout)@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: [docker/login-action](https://github.com/docker/login-action)@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: [docker/build-push-action](https://github.com)@v5
+        with:
+          push: true
+          # Replace <username> and <image-name> with your details
+          tags: ghcr.io/${{ github.repository_owner }}/my-app:latest 
