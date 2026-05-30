@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered, logEvent } from '../db.js';
+import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered } from '../db.js';
 import { getPlayingEpisodes } from '../tautulli.js';
 import { state, restartPolling, handleWebhookTrigger } from '../watcher.js';
 import { addSseClient, removeSseClient } from '../events.js';
@@ -72,11 +72,7 @@ router.post('/webhook', async (req, res) => {
 
   const ep = { sessionKey: 'webhook-' + Date.now(), showTitle, season, episode, tvdbId };
 
-  // Log the raw incoming webhook for troubleshooting
-  logEvent({ event_type: 'webhook_received', show_title: showTitle, season, episode,
-    details: { tvdbId, raw: { media_type: body.media_type, grandparent_title: body.grandparent_title,
-      parent_media_index: body.parent_media_index, media_index: body.media_index,
-      grandparent_guids: body.grandparent_guids } } });
+  console.log('[webhook] Received: show=' + showTitle + ' S' + String(season).padStart(2,'0') + 'E' + String(episode).padStart(2,'0') + ' tvdbId=' + tvdbId + ' guids=' + JSON.stringify(body.grandparent_guids));
 
   res.json({ ok: true, received: { showTitle, season, episode, tvdbId } });
   handleWebhookTrigger(ep).catch(err => console.error('[webhook] Processing error:', err.message));

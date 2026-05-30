@@ -41,7 +41,6 @@
     .badge-episode_skipped{background:rgba(107,112,128,.2);color:var(--muted);}
     .badge-season_monitored{background:rgba(249,115,22,.2);color:var(--orange);}
     .badge-error{background:rgba(239,68,68,.2);color:var(--red);}
-    .badge-webhook_received{background:rgba(245,158,11,.15);color:var(--yellow);}
     .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .activity table{width:100%;border-collapse:collapse;}
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
@@ -164,7 +163,6 @@
               <option value="episode_skipped">Skipped</option>
               <option value="season_monitored">Season Monitored</option>
               <option value="error">Error</option>
-              <option value="webhook_received">Webhook Received</option>
             </select>
           </div>
           <div class="filter-group"><label>From</label><input type="date" id="f-from"></div>
@@ -319,13 +317,6 @@
   function detailPills(row) {
     const d = row.details ? JSON.parse(row.details) : {};
     const pills = [];
-    if (row.event_type === 'webhook_received') {
-      const r = d.raw ?? {};
-      if (d.tvdbId) pills.push('tvdb:' + d.tvdbId);
-      if (r.grandparent_guids) pills.push('guids: ' + (Array.isArray(r.grandparent_guids) ? r.grandparent_guids.join(', ') : r.grandparent_guids));
-      if (!d.tvdbId) pills.push('no tvdb id parsed');
-      return pills.map(p=>'<span class="detail-pill">'+esc(p)+'</span>').join('');
-    }
     if (row.episode_count > 1) pills.push('x'+row.episode_count+' eps');
     if (d.reason) pills.push(d.reason.replace(/_/g,' '));
     if (d.status) pills.push(d.status.replace(/_/g,' '));

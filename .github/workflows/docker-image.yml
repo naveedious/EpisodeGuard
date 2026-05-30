@@ -4,6 +4,10 @@ on:
   push:
     branches: [ "main" ] # Triggers on push to main branch
 
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
