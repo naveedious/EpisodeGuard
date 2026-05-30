@@ -147,16 +147,35 @@ export async function checkSeasonEndAndPreload(seriesId, season, episode) {
   const nextSeasonEps = allEps.filter(e => e.seasonNumber === nextSeason);
   if (!nextSeasonEps.length) return false;
 
-  const series        = await sonarrReq('GET', '/series/' + seriesId);
-  const nextSeasonObj = series.seasons.find(s => s.seasonNumber === nextSeason);
+  const now = Date.now();
+  const firstEp = [...nextSeasonEps].sort((a, b) => a.episodeNumber - b.episodeNumber)[0];
+  const firstAirMs = firstEp.airDateUtc ? new Date(firstEp.airDateUtc).getTime() : null;
+  const hasAired = firstAirMs !== null && firstAirMs <= now;
 
-  if (nextSeasonObj && !nextSeasonObj.monitored) {
+  if (!hasAired) {
+    // Next season not out yet — monitor only so Sonarr auto-grabs on release, no search
+    const series        = await sonarrReq('GET', '/series/' + seriesId);
+    const nextSeasonObj = series.seasons.find(s => s.seasonNumber === nextSeason);
+    if (!nextSeasonObj || nextSeasonObj.monitored) {
+      console.log('[sonarr] S' + pad(nextSeason) + ' already monitored or not found, no change');
+      return false;
+    }
     nextSeasonObj.monitored = true;
-    console.log('[sonarr] Setting S' + pad(nextSeason) + ' to monitored for seriesId=' + seriesId);
+    console.log('[sonarr] Setting S' + pad(nextSeason) + ' to monitored (not yet aired) for seriesId=' + seriesId);
     await sonarrReq('PUT', '/series/' + seriesId, series);
+    return true;
   }
 
-  console.log('[sonarr] SeasonSearch seriesId=' + seriesId + ' season=' + nextSeason);
+  // Next season has aired — leave monitored status alone, search for missing episodes only
+  const missing = nextSeasonEps.filter(
+    e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() <= now
+  );
+  if (!missing.length) {
+    console.log('[sonarr] S' + pad(nextSeason) + ' has aired, all episodes on disk - no action');
+    return false;
+  }
+
+  console.log('[sonarr] S' + pad(nextSeason) + ' has aired, ' + missing.length + ' episode(s) missing - SeasonSearch seriesId=' + seriesId);
   await sonarrReq('POST', '/command', { name: 'SeasonSearch', seriesId, seasonNumber: nextSeason });
   return true;
 }
