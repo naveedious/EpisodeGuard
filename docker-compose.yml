@@ -1,13 +1,13 @@
 services:
-  episode-guard:
+  episodeguard:
     build: .
-    image: episode-guard:latest
-    container_name: episode-guard
+    image: episodeguard:latest
+    container_name: episodeguard
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
-      - episode-guard-data:/data
+      - episodeguard-data:/data
     environment:
       # ── Required ────────────────────────────────────────────────────────
       TAUTULLI_URL: ${TAUTULLI_URL}
@@ -21,4 +21,4 @@ services:
       DATA_DIR: /data
 
 volumes:
-  episode-guard-data:
+  episodeguard-data:

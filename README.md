@@ -94,7 +94,7 @@ JSON body:
 ## Building
 
 ```bash
-docker build -t episode-guard .
+docker build -t episodeguard .
 ```
 
 No npm install needed — uses Node's built-in `fetch`.
