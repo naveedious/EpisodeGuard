@@ -146,14 +146,9 @@ async function processEpisode(ep, series, trigger) {
     logEvent({ event_type: 'episode_confirmed', show_title: showTitle, season, episode,
       details: { status: 'on_disk', trigger } });
   } else if (confirmation.status === 'searched') {
-    console.log('[watcher] ' + label + ' not on disk - ' + (confirmation.wasUnmonitored ? 'set monitored + ' : '') + 'search triggered');
-    if (confirmation.wasUnmonitored) {
-      logEvent({ event_type: 'episode_monitored', show_title: showTitle, season, episode,
-        details: { reason: 'was_unmonitored', trigger,
-          apiCall: { method: 'PUT', path: '/episode/monitor' }, apiStatus: 'ok' } });
-    }
+    console.log('[watcher] ' + label + ' not on disk - search triggered (monitored=' + confirmation.monitored + ')');
     logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season, episode, episode_count: 1,
-      details: { reason: 'current_episode_not_on_disk', trigger,
+      details: { reason: 'current_episode_not_on_disk', trigger, monitored: confirmation.monitored,
         apiCall: { method: 'POST', path: '/command', body: { name: 'EpisodeSearch' } }, apiStatus: 'ok' } });
   }
 

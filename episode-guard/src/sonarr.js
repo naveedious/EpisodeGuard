@@ -41,15 +41,11 @@ export async function confirmCurrentEpisode(seriesId, season, episode) {
 
   if (ep.hasFile) return { status: 'on_disk', episodeId: ep.id };
 
-  if (!ep.monitored) {
-    console.log('[sonarr] S' + pad(season) + 'E' + pad(episode) + ' unmonitored -> setting monitored');
-    await sonarrReq('PUT', '/episode/monitor', { episodeIds: [ep.id], monitored: true });
-  }
-
-  console.log('[sonarr] Triggering EpisodeSearch for episode id=' + ep.id + ' (not on disk)');
+  // Search directly — do not touch monitored status (Sonarr searches regardless)
+  console.log('[sonarr] Triggering EpisodeSearch for episode id=' + ep.id + ' (not on disk, monitored=' + ep.monitored + ')');
   await sonarrReq('POST', '/command', { name: 'EpisodeSearch', episodeIds: [ep.id] });
 
-  return { status: 'searched', episodeId: ep.id, wasUnmonitored: !ep.monitored };
+  return { status: 'searched', episodeId: ep.id, monitored: ep.monitored };
 }
 
 export async function ensureUpcomingEpisodes(seriesId, season, episode) {
@@ -67,11 +63,22 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode) {
   if (!upcoming.length) return { monitored: 0, grabbed: 0, skipped: 0, actions: [] };
 
   const actions = [];
+  const now = Date.now();
 
-  const unmonitored = upcoming.filter(e => !e.monitored);
-  if (unmonitored.length) {
-    const ids = unmonitored.map(e => e.id);
-    console.log('[sonarr] Setting ' + ids.length + ' episode(s) to monitored: ids=[' + ids + ']');
+  const onDisk  = upcoming.filter(e => e.hasFile);
+  const future  = upcoming.filter(e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() > now);
+  const missing = upcoming.filter(e => !e.hasFile && (!e.airDateUtc || new Date(e.airDateUtc).getTime() <= now));
+
+  // On disk — leave completely alone, don't touch monitored status
+  for (const ep of onDisk) {
+    actions.push({ episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber, action: 'skipped_on_disk' });
+  }
+
+  // Future episodes not on disk — set monitored only so Sonarr auto-grabs on release
+  const futureUnmonitored = future.filter(e => !e.monitored);
+  if (futureUnmonitored.length) {
+    const ids = futureUnmonitored.map(e => e.id);
+    console.log('[sonarr] Setting ' + ids.length + ' future episode(s) to monitored: ids=[' + ids + ']');
     let monitorStatus;
     try {
       await sonarrReq('PUT', '/episode/monitor', { episodeIds: ids, monitored: true });
@@ -80,7 +87,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode) {
       monitorStatus = 'failed: ' + err.message;
       console.error('[sonarr] Monitor PUT failed:', err.message);
     }
-    for (const ep of unmonitored) {
+    for (const ep of futureUnmonitored) {
       actions.push({
         episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber,
         action: 'set_monitored',
@@ -89,20 +96,15 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode) {
       });
     }
   }
-
-  const now     = Date.now();
-  const onDisk  = upcoming.filter(e => e.hasFile);
-  // Only search episodes that have already aired (or have no air date set)
-  const missing = upcoming.filter(e => !e.hasFile && (!e.airDateUtc || new Date(e.airDateUtc).getTime() <= now));
-  const future  = upcoming.filter(e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() > now);
-
-  for (const ep of future) {
-    console.log('[sonarr] Skipping future episode S' + pad(ep.seasonNumber) + 'E' + pad(ep.episodeNumber) + ' (airs ' + ep.airDateUtc + ')');
+  // Future episodes already monitored — just note them
+  for (const ep of future.filter(e => e.monitored)) {
     actions.push({ episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber, action: 'skipped_future_airdate', airDateUtc: ep.airDateUtc });
   }
-
-  for (const ep of onDisk) {
-    actions.push({ episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber, action: 'skipped_on_disk' });
+  // Unmonitored future episodes we just set — also note air date for logging
+  for (const ep of futureUnmonitored) {
+    // already pushed as set_monitored above, add airDateUtc
+    const a = actions.find(a => a.episodeId === ep.id && a.action === 'set_monitored');
+    if (a) a.airDateUtc = ep.airDateUtc;
   }
 
   if (missing.length) {
