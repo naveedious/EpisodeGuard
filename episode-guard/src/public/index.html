@@ -361,11 +361,11 @@
       const {allTime,last7d} = data.stats;
       document.getElementById('cards-alltime').innerHTML =
         statCard('Episodes Grabbed', allTime.episodes_grabbed)+
-        statCard('Episodes On Disk', allTime.episodes_skipped)+
+        statCard('Episodes Monitored', allTime.episodes_monitored)+
         statCard('Seasons Monitored', allTime.seasons_monitored);
       document.getElementById('cards-7d').innerHTML =
         statCard('Episodes Grabbed', last7d.episodes_grabbed)+
-        statCard('Episodes On Disk', last7d.episodes_skipped)+
+        statCard('Episodes Monitored', last7d.episodes_monitored)+
         statCard('Seasons Monitored', last7d.seasons_monitored);
 
       const tbody = document.getElementById('activity-body');
@@ -553,11 +553,11 @@
       const {allTime,last7d} = data.stats;
       document.getElementById('cards-alltime').innerHTML =
         statCard('Episodes Grabbed', allTime.episodes_grabbed)+
-        statCard('Episodes On Disk', allTime.episodes_skipped)+
+        statCard('Episodes Monitored', allTime.episodes_monitored)+
         statCard('Seasons Monitored', allTime.seasons_monitored);
       document.getElementById('cards-7d').innerHTML =
         statCard('Episodes Grabbed', last7d.episodes_grabbed)+
-        statCard('Episodes On Disk', last7d.episodes_skipped)+
+        statCard('Episodes Monitored', last7d.episodes_monitored)+
         statCard('Seasons Monitored', last7d.seasons_monitored);
     } catch(err) { console.error('Status refresh failed:',err); }
   }

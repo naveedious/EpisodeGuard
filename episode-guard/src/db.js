@@ -130,7 +130,7 @@ export function getDashboardStats() {
     SELECT
       SUM(CASE WHEN event_type = 'episode_grabbed'  THEN COALESCE(episode_count, 1) ELSE 0 END) AS episodes_grabbed,
       SUM(CASE WHEN event_type = 'season_monitored' THEN 1                          ELSE 0 END) AS seasons_monitored,
-      SUM(CASE WHEN event_type = 'episode_skipped'  THEN COALESCE(episode_count, 1) ELSE 0 END) AS episodes_skipped
+      SUM(CASE WHEN event_type = 'episode_monitored' THEN COALESCE(episode_count, 1) ELSE 0 END) AS episodes_monitored
     FROM activity_log
     ${whereClause}
   `);
