@@ -2,6 +2,8 @@ name: Build and Push Docker Image
 on:
   push:
     branches: [ "main" ]
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -31,6 +33,10 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/episodeguard:latest
             ghcr.io/${{ github.repository_owner }}/episodeguard:${{ steps.date.outputs.tag }}
+          build-args: |
+            BUILD_DATE=${{ steps.date.outputs.tag }}
+            VERSION=${{ steps.date.outputs.tag }}
+            REVISION=${{ github.sha }}
 
       - name: Delete old package versions (keep last 3)
         uses: actions/delete-package-versions@v5

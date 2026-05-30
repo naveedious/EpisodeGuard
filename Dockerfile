@@ -17,6 +17,18 @@ COPY src/ ./src/
 
 RUN mkdir -p /data
 
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+
+LABEL org.opencontainers.image.title="Episode Guard" \
+      org.opencontainers.image.description="Watches Tautulli and keeps Sonarr ahead of what you're watching" \
+      org.opencontainers.image.url="https://github.com/naveedious/episodeguard" \
+      org.opencontainers.image.source="https://github.com/naveedious/episodeguard" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION
+
 ENV NODE_ENV=production
 ENV DATA_DIR=/data
 
