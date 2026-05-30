@@ -1,16 +1,13 @@
 name: Build and Push Docker Image
-
 on:
   push:
-    branches: [ "main" ] # Triggers on push to main branch
-
+    branches: [ "main" ]
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
