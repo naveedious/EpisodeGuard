@@ -71,6 +71,14 @@ router.post('/webhook', async (req, res) => {
   }
 
   const ep = { sessionKey: 'webhook-' + Date.now(), showTitle, season, episode, tvdbId };
+
+  // Log the raw incoming webhook for troubleshooting
+  const { logEvent } = await import('../db.js');
+  logEvent({ event_type: 'webhook_received', show_title: showTitle, season, episode,
+    details: { tvdbId, raw: { media_type: body.media_type, grandparent_title: body.grandparent_title,
+      parent_media_index: body.parent_media_index, media_index: body.media_index,
+      grandparent_guids: body.grandparent_guids } } });
+
   res.json({ ok: true, received: { showTitle, season, episode, tvdbId } });
   handleWebhookTrigger(ep).catch(err => console.error('[webhook] Processing error:', err.message));
 });

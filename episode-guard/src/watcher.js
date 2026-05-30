@@ -180,10 +180,20 @@ async function processEpisode(ep, series, trigger) {
           apiCall: searchedActions[0].apiCall, apiStatus: searchedActions[0].apiStatus } });
     }
     console.log('[watcher] ' + label + ' - monitored ' + result.monitored + ', grabbed ' + result.grabbed + ', skipped ' + result.skipped);
-  } else if (result.skipped > 0) {
-    logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
-      episode_count: result.skipped, details: { reason: 'upcoming_on_disk', trigger } });
-    console.log('[watcher] ' + label + ' - next ' + result.skipped + ' episode(s) already on disk');
+  } else if (result.skipped > 0 || result.future > 0) {
+    if (result.skipped > 0) {
+      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
+        episode_count: result.skipped, details: { reason: 'upcoming_on_disk', trigger } });
+      console.log('[watcher] ' + label + ' - next ' + result.skipped + ' episode(s) already on disk');
+    }
+    if (result.future > 0) {
+      const futureEps = result.actions.filter(a => a.action === 'skipped_future_airdate');
+      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
+        episode_count: result.future, details: { reason: 'not_yet_aired', trigger,
+          episodes: futureEps.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
+          earliest_airdate: futureEps[0]?.airDateUtc } });
+      console.log('[watcher] ' + label + ' - ' + result.future + ' future episode(s) skipped (not yet aired)');
+    }
   }
 
   // 3. Season-end pre-load

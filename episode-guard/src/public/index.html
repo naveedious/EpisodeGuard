@@ -41,6 +41,7 @@
     .badge-episode_skipped{background:rgba(107,112,128,.2);color:var(--muted);}
     .badge-season_monitored{background:rgba(249,115,22,.2);color:var(--orange);}
     .badge-error{background:rgba(239,68,68,.2);color:var(--red);}
+    .badge-webhook_received{background:rgba(245,158,11,.15);color:var(--yellow);}
     .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .activity table{width:100%;border-collapse:collapse;}
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
@@ -163,6 +164,7 @@
               <option value="episode_skipped">Skipped</option>
               <option value="season_monitored">Season Monitored</option>
               <option value="error">Error</option>
+              <option value="webhook_received">Webhook Received</option>
             </select>
           </div>
           <div class="filter-group"><label>From</label><input type="date" id="f-from"></div>
@@ -230,8 +232,17 @@
           </div>
           <div class="field">
             <label>Webhook Endpoint</label>
-            <div class="hint">In Tautulli, configure a Webhook notification agent for Playback Start to POST JSON to this URL. Include fields: <code style="color:var(--text)">media_type</code>, <code style="color:var(--text)">grandparent_title</code>, <code style="color:var(--text)">parent_media_index</code>, <code style="color:var(--text)">media_index</code>, <code style="color:var(--text)">grandparent_guids</code>.</div>
+            <div class="hint">In Tautulli: Notification Agents &rarr; Add Webhook &rarr; Playback Start. Set Method to <strong>POST</strong>, paste the URL below, then paste the JSON body into the <strong>JSON Data</strong> field.</div>
             <div class="code-block" id="webhook-url-display">-</div>
+            <div class="hint" style="margin-top:12px">Tautulli JSON Data body (copy &amp; paste):</div>
+            <div class="code-block" style="white-space:pre;line-height:1.6">{
+  "media_type": "{media_type}",
+  "grandparent_title": "{show_name}",
+  "parent_media_index": {season_num},
+  "media_index": {episode_num},
+  "grandparent_guids": ["tvdb://{thetvdb_id}"]
+}</div>
+            <div class="hint" style="margin-top:6px">Tautulli will substitute <code style="color:var(--text)">{show_name}</code>, <code style="color:var(--text)">{season_num}</code>, <code style="color:var(--text)">{episode_num}</code>, and <code style="color:var(--text)">{thetvdb_id}</code> at notification time. Only fires for <code style="color:var(--text)">media_type = episode</code>.</div>
           </div>
         </div>
         <div class="settings-group">
@@ -336,9 +347,9 @@
       const {lastPollAt,nextPollAt,lastError,webhookEnabled} = data.status;
       const dot = document.getElementById('status-dot');
       dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
-      document.getElementById('poll-status').textContent =
-        'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+
-        (webhookEnabled?' - webhook':'')+(lastError?' - ! '+lastError.slice(0,40):'');
+      document.getElementById('poll-status').textContent = webhookEnabled
+        ? 'Webhook' + (lastError?' - ! '+lastError.slice(0,40):'')
+        : 'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'');
 
       const np = document.getElementById('now-playing-list');
       np.innerHTML = data.nowPlaying.length
