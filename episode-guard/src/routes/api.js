@@ -1,81 +1,115 @@
 import { Router } from 'express';
-import { getAllSettings, setSettings, getDashboardStats, getRecentActivity } from '../db.js';
+import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered } from '../db.js';
 import { getPlayingEpisodes } from '../tautulli.js';
-import { state, restartPolling } from '../watcher.js';
+import { state, restartPolling, handleWebhookTrigger } from '../watcher.js';
+import { addSseClient, removeSseClient } from '../events.js';
 
 const router = Router();
 
-// ── Status ────────────────────────────────────────────────────────────────
-
 router.get('/status', (req, res) => {
   res.json({
-    lastPollAt: state.lastPollAt,
-    nextPollAt: state.nextPollAt,
-    isRunning:  state.isRunning,
-    lastError:  state.lastError,
+    lastPollAt: state.lastPollAt, nextPollAt: state.nextPollAt,
+    isRunning: state.isRunning, lastError: state.lastError, webhookEnabled: state.webhookEnabled,
   });
 });
-
-// ── Dashboard ─────────────────────────────────────────────────────────────
 
 router.get('/dashboard', async (req, res) => {
   try {
     const [stats, activity, nowPlaying] = await Promise.all([
       Promise.resolve(getDashboardStats()),
-      Promise.resolve(getRecentActivity(100)),
+      Promise.resolve(getRecentActivity(50)),
       getPlayingEpisodes().catch(() => []),
     ]);
-
     res.json({ stats, activity, nowPlaying, status: {
-      lastPollAt: state.lastPollAt,
-      nextPollAt: state.nextPollAt,
-      isRunning:  state.isRunning,
-      lastError:  state.lastError,
+      lastPollAt: state.lastPollAt, nextPollAt: state.nextPollAt,
+      isRunning: state.isRunning, lastError: state.lastError, webhookEnabled: state.webhookEnabled,
     }});
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/logs', (req, res) => {
+  const { show, type, from, to } = req.query;
+  const limit  = Math.min(parseInt(req.query.limit ?? '50', 10), 200);
+  const page   = Math.max(parseInt(req.query.page  ?? '1',  10), 1);
+  const offset = (page - 1) * limit;
+  try {
+    const result = getActivityFiltered({ show, type, from, to }, limit, offset);
+    res.json({ rows: result.rows, total: result.total, page, limit, totalPages: Math.ceil(result.total / limit) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/logs/stream', (req, res) => {
+  res.setHeader('Content-Type',  'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection',    'keep-alive');
+  res.flushHeaders();
+
+  const recent = getRecentActivity(20).reverse();
+  for (const row of recent) res.write('data: ' + JSON.stringify(row) + '\n\n');
+
+  addSseClient(res);
+
+  const ping = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch { clearInterval(ping); }
+  }, 30000);
+
+  req.on('close', () => { clearInterval(ping); removeSseClient(res); });
+});
+
+router.post('/webhook', async (req, res) => {
+  const body = req.body;
+  const mediaType = body.media_type ?? body.mediaType;
+  if (mediaType !== 'episode') return res.json({ ok: true, skipped: 'not an episode' });
+
+  const showTitle = body.grandparent_title ?? body.show_name ?? '';
+  const season    = parseInt(body.parent_media_index ?? body.season_num  ?? '0', 10);
+  const episode   = parseInt(body.media_index        ?? body.episode_num ?? '0', 10);
+  const tvdbId    = parseTvdbId(body.grandparent_guids ?? []);
+
+  if (!showTitle || !season || !episode) {
+    return res.status(400).json({ error: 'Missing required fields: grandparent_title, parent_media_index, media_index' });
   }
+
+  const ep = { sessionKey: 'webhook-' + Date.now(), showTitle, season, episode, tvdbId };
+  res.json({ ok: true, received: { showTitle, season, episode, tvdbId } });
+  handleWebhookTrigger(ep).catch(err => console.error('[webhook] Processing error:', err.message));
 });
 
-// ── Settings ──────────────────────────────────────────────────────────────
+function parseTvdbId(guids) {
+  if (!Array.isArray(guids)) return null;
+  for (const g of guids) {
+    const m = String(g).match(/^tvdb:\/\/(\d+)$/);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
+}
 
-router.get('/settings', (req, res) => {
-  res.json(getAllSettings());
-});
+router.get('/settings', (req, res) => { res.json(getAllSettings()); });
 
 router.post('/settings', (req, res) => {
-  const allowed = [
-    'poll_interval_seconds',
-    'lookahead_episodes',
-    'season_end_buffer',
-  ];
-
+  const allowed = ['poll_interval_seconds','lookahead_episodes','season_end_buffer',
+                   'log_retention_days','apprise_url','apprise_events','webhook_enabled'];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
   }
+  if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid settings provided' });
 
-  if (!Object.keys(updates).length) {
-    return res.status(400).json({ error: 'No valid settings provided' });
-  }
-
-  // Validate numerics
-  const numerics = ['poll_interval_seconds', 'lookahead_episodes', 'season_end_buffer'];
+  const numerics = ['poll_interval_seconds','lookahead_episodes','season_end_buffer','log_retention_days'];
   for (const key of numerics) {
     if (updates[key] !== undefined) {
       const n = parseInt(updates[key], 10);
-      if (isNaN(n) || n < 1) return res.status(400).json({ error: `${key} must be a positive integer` });
+      if (isNaN(n) || n < 1) return res.status(400).json({ error: key + ' must be a positive integer' });
       updates[key] = String(n);
     }
   }
 
-  setSettings(updates);
-
-  // Hot-reload watcher if poll interval changed
-  if (updates.poll_interval_seconds) {
-    restartPolling();
+  if (updates.webhook_enabled !== undefined) {
+    updates.webhook_enabled = (updates.webhook_enabled === '1' || updates.webhook_enabled === true || updates.webhook_enabled === 'true') ? '1' : '0';
   }
 
+  setSettings(updates);
+  if (updates.poll_interval_seconds || updates.webhook_enabled !== undefined) restartPolling();
   res.json({ ok: true, settings: getAllSettings() });
 });
 

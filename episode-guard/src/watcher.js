@@ -1,30 +1,29 @@
 import { getPlayingEpisodes, getRecentlyWatchedEpisodes } from './tautulli.js';
 import {
   findSeriesByTvdbId,
+  confirmCurrentEpisode,
   ensureUpcomingEpisodes,
   checkSeasonEndAndPreload,
 } from './sonarr.js';
-import { getSetting, logEvent } from './db.js';
-
-// ── State (exposed to API) ────────────────────────────────────────────────
+import { getSetting, logEvent, purgeOldLogs } from './db.js';
 
 export const state = {
-  lastPollAt:  null,   // ISO string
-  nextPollAt:  null,   // ISO string
-  isRunning:   false,
-  lastError:   null,
+  lastPollAt:     null,
+  nextPollAt:     null,
+  isRunning:      false,
+  lastError:      null,
+  webhookEnabled: false,
 };
 
-// Track processed sessions: sessionKey → `${seriesId}-S${s}E${e}`
 const processed = new Map();
-
 let pollTimer = null;
 
-// ── Public controls ───────────────────────────────────────────────────────
-
 export function startPolling() {
-  const intervalMs = parseInt(getSetting('poll_interval_seconds'), 10) * 1000;
-  console.log(`[watcher] Starting — poll every ${intervalMs / 1000}s`);
+  const webhookEnabled = getSetting('webhook_enabled') === '1';
+  state.webhookEnabled = webhookEnabled;
+  const defaultInterval = webhookEnabled ? 600 : 300;
+  const intervalMs = parseInt(getSetting('poll_interval_seconds') || String(defaultInterval), 10) * 1000;
+  console.log('[watcher] Starting - poll every ' + (intervalMs / 1000) + 's' + (webhookEnabled ? ' (webhook active, polling as fallback)' : ''));
   state.isRunning = true;
   scheduleNext(intervalMs, true);
 }
@@ -40,7 +39,22 @@ export function restartPolling() {
   startPolling();
 }
 
-// ── Internal ──────────────────────────────────────────────────────────────
+export async function handleWebhookTrigger(ep) {
+  const { showTitle, season, episode, tvdbId } = ep;
+  const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
+  console.log('[watcher] Webhook trigger: ' + label);
+  try {
+    const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
+    if (!series) {
+      console.warn('[watcher] ' + label + ' not found in Sonarr (webhook) - skipping');
+      return;
+    }
+    await processEpisode(ep, series, 'webhook');
+  } catch (err) {
+    console.error('[watcher] Webhook error for ' + label + ':', err.message);
+    logEvent({ event_type: 'error', show_title: showTitle, season, episode, details: { message: err.message, trigger: 'webhook' } });
+  }
+}
 
 function scheduleNext(intervalMs, runNow = false) {
   if (runNow) runWatcher();
@@ -53,21 +67,26 @@ function scheduleNext(intervalMs, runNow = false) {
 
 async function runWatcher() {
   state.lastPollAt = new Date().toISOString();
-  console.log(`[watcher] Poll — ${state.lastPollAt}`);
+  console.log('[watcher] Poll - ' + state.lastPollAt);
+
+  try { purgeOldLogs(); } catch (err) { console.error('[watcher] Log purge error:', err.message); }
+
+  const webhookEnabled = getSetting('webhook_enabled') === '1';
+  state.webhookEnabled = webhookEnabled;
 
   let episodes;
   try {
-    const [playing, recent] = await Promise.all([
-      getPlayingEpisodes(),
-      getRecentlyWatchedEpisodes(parseInt(getSetting('poll_interval_seconds'), 10) * 2),
-    ]);
-
-    // Deduplicate: active sessions win over history entries
-    const seen = new Set(playing.map(e => `${e.showTitle}-S${e.season}E${e.episode}`));
-    const uniqueRecent = recent.filter(
-      e => !seen.has(`${e.showTitle}-S${e.season}E${e.episode}`)
-    );
-    episodes = [...playing, ...uniqueRecent];
+    if (webhookEnabled) {
+      episodes = await getPlayingEpisodes();
+    } else {
+      const [playing, recent] = await Promise.all([
+        getPlayingEpisodes(),
+        getRecentlyWatchedEpisodes(parseInt(getSetting('poll_interval_seconds'), 10) * 2),
+      ]);
+      const seen = new Set(playing.map(e => e.showTitle + '-S' + e.season + 'E' + e.episode));
+      const uniqueRecent = recent.filter(e => !seen.has(e.showTitle + '-S' + e.season + 'E' + e.episode));
+      episodes = [...playing, ...uniqueRecent];
+    }
   } catch (err) {
     state.lastError = err.message;
     console.error('[watcher] Tautulli error:', err.message);
@@ -83,53 +102,96 @@ async function runWatcher() {
 
   for (const ep of episodes) {
     const { sessionKey, showTitle, season, episode, tvdbId } = ep;
-    const label = `"${showTitle}" S${pad(season)}E${pad(episode)}`;
-
+    const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
     try {
       const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
-
       if (!series) {
-        console.warn(`[watcher] ${label} not found in Sonarr — skipping`);
+        console.warn('[watcher] ' + label + ' not found in Sonarr - skipping');
         continue;
       }
-
-      const cacheKey = `${series.id}-S${season}E${episode}`;
+      const cacheKey = series.id + '-S' + season + 'E' + episode;
       if (processed.get(sessionKey) === cacheKey) {
-        console.log(`[watcher] ${label} already processed this session`);
+        console.log('[watcher] ' + label + ' already processed this session');
         continue;
       }
-
-      // Ensure upcoming episodes
-      console.log(`[watcher] Checking upcoming for ${label}`);
-      const result = await ensureUpcomingEpisodes(series.id, season, episode);
-
-      if (result.grabbed > 0) {
-        logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season, episode, episode_count: result.grabbed });
-        console.log(`[watcher] ${label} — grabbed ${result.grabbed}, skipped ${result.skipped}`);
-      } else if (result.skipped > 0) {
-        console.log(`[watcher] ${label} — next ${result.skipped} episode(s) already on disk ✓`);
-      }
-
-      // Season-end pre-load check
-      const preloaded = await checkSeasonEndAndPreload(series.id, season, episode);
-      if (preloaded) {
-        logEvent({ event_type: 'season_monitored', show_title: showTitle, season: season + 1, details: { reason: 'season_end_preload' } });
-        console.log(`[watcher] ${label} — near season end, pre-monitoring S${pad(season + 1)}`);
-      }
-
+      await processEpisode(ep, series, 'poll');
       processed.set(sessionKey, cacheKey);
       state.lastError = null;
-
     } catch (err) {
       state.lastError = err.message;
-      console.error(`[watcher] Error processing ${label}:`, err.message);
-      logEvent({ event_type: 'error', show_title: showTitle, season, episode, details: { message: err.message } });
+      console.error('[watcher] Error processing ' + label + ':', err.message);
+      logEvent({ event_type: 'error', show_title: showTitle, season, episode, details: { message: err.message, trigger: 'poll' } });
     }
   }
 
-  // Prune stale session keys
   for (const key of processed.keys()) {
     if (!activeSessions.has(key)) processed.delete(key);
+  }
+}
+
+async function processEpisode(ep, series, trigger) {
+  const { showTitle, season, episode } = ep;
+  const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
+
+  // 1. Confirm current episode
+  console.log('[watcher] Confirming current episode ' + label + ' in Sonarr');
+  const confirmation = await confirmCurrentEpisode(series.id, season, episode);
+
+  if (confirmation.status === 'not_found') {
+    console.log('[watcher] ' + label + ' not found in Sonarr episode list');
+    logEvent({ event_type: 'error', show_title: showTitle, season, episode,
+      details: { message: 'Episode not found in Sonarr episode list', trigger } });
+  } else if (confirmation.status === 'on_disk') {
+    console.log('[watcher] ' + label + ' confirmed on disk');
+    logEvent({ event_type: 'episode_confirmed', show_title: showTitle, season, episode,
+      details: { status: 'on_disk', trigger } });
+  } else if (confirmation.status === 'searched') {
+    console.log('[watcher] ' + label + ' not on disk - ' + (confirmation.wasUnmonitored ? 'set monitored + ' : '') + 'search triggered');
+    if (confirmation.wasUnmonitored) {
+      logEvent({ event_type: 'episode_monitored', show_title: showTitle, season, episode,
+        details: { reason: 'was_unmonitored', trigger,
+          apiCall: { method: 'PUT', path: '/episode/monitor' }, apiStatus: 'ok' } });
+    }
+    logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season, episode, episode_count: 1,
+      details: { reason: 'current_episode_not_on_disk', trigger,
+        apiCall: { method: 'POST', path: '/command', body: { name: 'EpisodeSearch' } }, apiStatus: 'ok' } });
+  }
+
+  // 2. Ensure upcoming episodes
+  console.log('[watcher] Checking upcoming for ' + label);
+  const result = await ensureUpcomingEpisodes(series.id, season, episode);
+
+  if (result.grabbed > 0 || result.monitored > 0) {
+    const searchedActions  = result.actions.filter(a => a.action === 'search_triggered');
+    const monitoredActions = result.actions.filter(a => a.action === 'set_monitored');
+
+    if (monitoredActions.length) {
+      logEvent({ event_type: 'episode_monitored', show_title: showTitle, season, episode,
+        episode_count: monitoredActions.length,
+        details: { reason: 'upcoming_unmonitored', trigger,
+          episodes: monitoredActions.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
+          apiCall: monitoredActions[0].apiCall, apiStatus: monitoredActions[0].apiStatus } });
+    }
+    if (searchedActions.length) {
+      logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season, episode,
+        episode_count: searchedActions.length,
+        details: { reason: 'upcoming_not_on_disk', trigger,
+          episodes: searchedActions.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
+          apiCall: searchedActions[0].apiCall, apiStatus: searchedActions[0].apiStatus } });
+    }
+    console.log('[watcher] ' + label + ' - monitored ' + result.monitored + ', grabbed ' + result.grabbed + ', skipped ' + result.skipped);
+  } else if (result.skipped > 0) {
+    logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
+      episode_count: result.skipped, details: { reason: 'upcoming_on_disk', trigger } });
+    console.log('[watcher] ' + label + ' - next ' + result.skipped + ' episode(s) already on disk');
+  }
+
+  // 3. Season-end pre-load
+  const preloaded = await checkSeasonEndAndPreload(series.id, season, episode);
+  if (preloaded) {
+    logEvent({ event_type: 'season_monitored', show_title: showTitle, season: season + 1,
+      details: { reason: 'season_end_preload', trigger } });
+    console.log('[watcher] ' + label + ' - near season end, pre-monitoring S' + pad(season + 1));
   }
 }
 

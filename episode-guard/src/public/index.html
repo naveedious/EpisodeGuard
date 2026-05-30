@@ -6,98 +6,105 @@
   <title>Episode Guard</title>
   <style>
     :root {
-      --bg:       #0f1117;
-      --surface:  #1a1d27;
-      --border:   #2a2d3d;
-      --text:     #e2e4ed;
-      --muted:    #6b7080;
-      --accent:   #6c63ff;
-      --green:    #22c55e;
-      --yellow:   #f59e0b;
-      --red:      #ef4444;
-      --blue:     #3b82f6;
+      --bg:#0f1117;--surface:#1a1d27;--border:#2a2d3d;--text:#e2e4ed;--muted:#6b7080;
+      --accent:#6c63ff;--green:#22c55e;--yellow:#f59e0b;--red:#ef4444;--blue:#3b82f6;--orange:#f97316;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.5; }
-    a { color: var(--accent); text-decoration: none; }
-
-    /* Layout */
-    .app { display: flex; flex-direction: column; min-height: 100vh; }
-    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; gap: 24px; height: 56px; }
-    header h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; color: var(--text); }
-    header h1 span { color: var(--accent); }
-    nav { display: flex; gap: 4px; }
-    nav button { background: none; border: none; color: var(--muted); font-size: 13px; padding: 6px 14px; border-radius: 6px; cursor: pointer; transition: background .15s, color .15s; }
-    nav button:hover { background: var(--border); color: var(--text); }
-    nav button.active { background: var(--accent); color: #fff; }
-    .status-bar { margin-left: auto; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 16px; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; }
-    .status-dot.error { background: var(--red); }
-    main { padding: 24px; flex: 1; max-width: 1200px; width: 100%; margin: 0 auto; }
-
-    /* Views */
-    .view { display: none; }
-    .view.active { display: block; }
-
-    /* Section titles */
-    .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
-
-    /* Cards grid */
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 28px; }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
-    .card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; }
-    .card .big { font-size: 32px; font-weight: 700; line-height: 1; }
-    .card .sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
-    .card .sub span { color: var(--green); }
-
-    /* Now playing */
-    .now-playing { margin-bottom: 28px; }
-    .playing-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
-    .playing-badge { background: var(--red); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: .5px; flex-shrink: 0; }
-    .playing-title { font-weight: 600; }
-    .playing-ep { color: var(--muted); font-size: 13px; }
-    .empty-state { color: var(--muted); padding: 16px 0; font-size: 13px; }
-
-    /* Activity log */
-    .activity { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-    .activity table { width: 100%; border-collapse: collapse; }
-    .activity th { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); }
-    .activity td { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
-    .activity tr:last-child td { border-bottom: none; }
-    .activity tr:hover td { background: rgba(255,255,255,.02); }
-    .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
-    .badge-show_added      { background: rgba(108,99,255,.2); color: var(--accent); }
-    .badge-episode_grabbed { background: rgba(34,197,94,.2);  color: var(--green); }
-    .badge-season_monitored{ background: rgba(59,130,246,.2); color: var(--blue); }
-    .badge-error           { background: rgba(239,68,68,.2);  color: var(--red); }
-    .badge-episode_skipped { background: rgba(107,112,128,.2);color: var(--muted); }
-
-    /* Settings */
-    .settings-form { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px; max-width: 560px; }
-    .field { margin-bottom: 20px; }
-    .field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
-    .field .hint { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-    .field input, .field select {
-      width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-      color: var(--text); font-size: 14px; padding: 8px 12px; outline: none; transition: border-color .15s;
-    }
-    .field input:focus, .field select:focus { border-color: var(--accent); }
-    .field select option { background: var(--bg); }
-    .save-btn {
-      background: var(--accent); color: #fff; border: none; border-radius: 6px;
-      padding: 9px 22px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s;
-    }
-    .save-btn:hover { opacity: .85; }
-    .save-btn:disabled { opacity: .4; cursor: default; }
-    .toast { margin-top: 14px; font-size: 13px; padding: 8px 14px; border-radius: 6px; display: none; }
-    .toast.success { background: rgba(34,197,94,.15); color: var(--green); }
-    .toast.error   { background: rgba(239,68,68,.15);  color: var(--red); }
-
-    /* Sections */
-    .section { margin-bottom: 32px; }
-
-    /* Scrollable activity */
-    .activity-wrap { max-height: 480px; overflow-y: auto; border-radius: 10px; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:14px;line-height:1.5;}
+    a{color:var(--accent);text-decoration:none;}
+    .app{display:flex;flex-direction:column;min-height:100vh;}
+    header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:24px;height:56px;}
+    header h1{font-size:16px;font-weight:700;letter-spacing:.5px;color:var(--text);flex-shrink:0;}
+    header h1 span{color:var(--accent);}
+    nav{display:flex;gap:4px;}
+    nav button{background:none;border:none;color:var(--muted);font-size:13px;padding:6px 14px;border-radius:6px;cursor:pointer;transition:background .15s,color .15s;}
+    nav button:hover{background:var(--border);color:var(--text);}
+    nav button.active{background:var(--accent);color:#fff;}
+    .status-bar{margin-left:auto;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:10px;}
+    .status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;flex-shrink:0;}
+    .status-dot.error{background:var(--red);}.status-dot.webhook{background:var(--blue);}
+    main{padding:24px;flex:1;max-width:1200px;width:100%;margin:0 auto;}
+    .view{display:none;}.view.active{display:block;}
+    .section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:28px;}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 20px;}
+    .card .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+    .card .big{font-size:32px;font-weight:700;line-height:1;}
+    .playing-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:8px;}
+    .playing-badge{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.5px;flex-shrink:0;}
+    .playing-title{font-weight:600;}.playing-ep{color:var(--muted);font-size:13px;}
+    .empty-state{color:var(--muted);padding:16px 0;font-size:13px;}
+    .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;white-space:nowrap;}
+    .badge-episode_confirmed{background:rgba(34,197,94,.15);color:var(--green);}
+    .badge-episode_grabbed{background:rgba(108,99,255,.2);color:var(--accent);}
+    .badge-episode_monitored{background:rgba(59,130,246,.2);color:var(--blue);}
+    .badge-episode_skipped{background:rgba(107,112,128,.2);color:var(--muted);}
+    .badge-season_monitored{background:rgba(249,115,22,.2);color:var(--orange);}
+    .badge-error{background:rgba(239,68,68,.2);color:var(--red);}
+    .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+    .activity table{width:100%;border-collapse:collapse;}
+    .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
+    .activity td{padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;}
+    .activity tr:last-child td{border-bottom:none;}.activity tr:hover td{background:rgba(255,255,255,.02);}
+    .activity-wrap{max-height:420px;overflow-y:auto;border-radius:10px;}
+    .section{margin-bottom:32px;}
+    .settings-sections{display:flex;flex-direction:column;gap:24px;max-width:620px;}
+    .settings-group{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;}
+    .settings-group-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:20px;}
+    .field{margin-bottom:18px;}.field:last-of-type{margin-bottom:0;}
+    .field label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;}
+    .field .hint{font-size:12px;color:var(--muted);margin-bottom:6px;}
+    .field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;padding:8px 12px;outline:none;transition:border-color .15s;}
+    .field input:focus,.field select:focus{border-color:var(--accent);}
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;}
+    .toggle-row .toggle-label{font-size:13px;font-weight:500;}
+    .toggle{position:relative;display:inline-block;width:40px;height:22px;}
+    .toggle input{opacity:0;width:0;height:0;}
+    .toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:22px;transition:.2s;}
+    .toggle-slider:before{position:absolute;content:'';height:16px;width:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.2s;}
+    .toggle input:checked+.toggle-slider{background:var(--accent);}
+    .toggle input:checked+.toggle-slider:before{transform:translateX(18px);}
+    .code-block{font-family:monospace;font-size:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px;color:var(--muted);margin-top:6px;word-break:break-all;user-select:all;}
+    .save-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px 22px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s;}
+    .save-btn:hover{opacity:.85;}.save-btn:disabled{opacity:.4;cursor:default;}
+    .toast{margin-top:14px;font-size:13px;padding:8px 14px;border-radius:6px;display:none;}
+    .toast.success{background:rgba(34,197,94,.15);color:var(--green);}.toast.error{background:rgba(239,68,68,.15);color:var(--red);}
+    .logs-layout{display:flex;flex-direction:column;gap:20px;}
+    .filter-bar{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+    .filter-group{display:flex;flex-direction:column;gap:4px;}
+    .filter-group label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);}
+    .filter-group input,.filter-group select{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:6px 10px;outline:none;transition:border-color .15s;}
+    .filter-group input:focus,.filter-group select:focus{border-color:var(--accent);}
+    .filter-group input[type=text]{min-width:180px;}.filter-group input[type=date]{min-width:140px;}
+    .filter-actions{display:flex;gap:8px;padding-bottom:1px;}
+    .btn-sm{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 16px;font-size:13px;font-weight:600;cursor:pointer;}
+    .btn-ghost{background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer;}
+    .btn-ghost:hover{border-color:var(--text);color:var(--text);}
+    .panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+    .panel-header{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+    .panel-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);}
+    .panel-header .spacer{flex:1;}.panel-count{font-size:12px;color:var(--muted);}
+    .live-dot{width:8px;height:8px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite;flex-shrink:0;}
+    .live-dot.paused{background:var(--muted);animation:none;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+    .live-feed{max-height:300px;overflow-y:auto;font-family:monospace;font-size:12px;}
+    .live-row{padding:8px 18px;border-bottom:1px solid rgba(255,255,255,.04);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;}
+    .live-row:last-child{border-bottom:none;}.live-row.new{animation:flash .5s ease;}
+    @keyframes flash{0%{background:rgba(108,99,255,.18);}100%{background:transparent;}}
+    .live-time{color:var(--muted);white-space:nowrap;flex-shrink:0;min-width:72px;}
+    .live-type{flex-shrink:0;min-width:140px;}.live-show{color:var(--text);}
+    .live-ep{color:var(--muted);margin-left:4px;}.live-detail{color:var(--muted);font-size:11px;}
+    .live-empty{padding:20px 18px;color:var(--muted);font-size:13px;font-family:system-ui;}
+    .hist-wrap{overflow-x:auto;}
+    .hist-wrap table{width:100%;border-collapse:collapse;}
+    .hist-wrap th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
+    .hist-wrap td{padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top;}
+    .hist-wrap tr:last-child td{border-bottom:none;}.hist-wrap tr:hover td{background:rgba(255,255,255,.02);}
+    .detail-pill{font-size:11px;color:var(--muted);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 6px;margin:1px 2px 1px 0;display:inline-block;}
+    .pagination{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-top:1px solid var(--border);}
+    .page-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;}
+    .page-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}.page-btn:disabled{opacity:.35;cursor:default;}
+    .page-info{font-size:13px;color:var(--muted);}
   </style>
 </head>
 <body>
@@ -105,106 +112,172 @@
   <header>
     <h1>Episode<span>Guard</span></h1>
     <nav>
-      <button class="active" onclick="showView('dashboard', this)">Dashboard</button>
-      <button onclick="showView('settings', this)">Settings</button>
+      <button class="active" onclick="showView('dashboard',this)">Dashboard</button>
+      <button onclick="showView('logs',this)">Logs</button>
+      <button onclick="showView('settings',this)">Settings</button>
     </nav>
     <div class="status-bar">
-      <span id="poll-status">Loading…</span>
+      <span id="poll-status">Loading...</span>
       <span class="status-dot" id="status-dot"></span>
     </div>
   </header>
-
   <main>
 
-    <!-- DASHBOARD VIEW -->
+    <!-- DASHBOARD -->
     <div id="view-dashboard" class="view active">
-
       <div class="section">
         <div class="section-title">Now Playing</div>
-        <div id="now-playing-list"><div class="empty-state">Loading…</div></div>
+        <div id="now-playing-list"><div class="empty-state">Loading...</div></div>
       </div>
-
       <div class="section">
         <div class="section-title">All Time</div>
         <div class="cards" id="cards-alltime"></div>
       </div>
-
       <div class="section">
         <div class="section-title">Last 7 Days</div>
         <div class="cards" id="cards-7d"></div>
       </div>
-
       <div class="section">
         <div class="section-title">Recent Activity</div>
         <div class="activity-wrap activity">
           <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Event</th>
-                <th>Show</th>
-                <th>Episode</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody id="activity-body">
-              <tr><td colspan="5" style="color:var(--muted);padding:16px">Loading…</td></tr>
-            </tbody>
+            <thead><tr><th>Time</th><th>Event</th><th>Show</th><th>Episode</th><th>Details</th></tr></thead>
+            <tbody id="activity-body"><tr><td colspan="5" style="color:var(--muted);padding:16px">Loading...</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- SETTINGS VIEW -->
+    <!-- LOGS -->
+    <div id="view-logs" class="view">
+      <div class="logs-layout">
+        <div class="filter-bar">
+          <div class="filter-group"><label>Show</label><input type="text" id="f-show" placeholder="Filter by show..."></div>
+          <div class="filter-group">
+            <label>Status</label>
+            <select id="f-type">
+              <option value="">All</option>
+              <option value="episode_confirmed">Confirmed</option>
+              <option value="episode_grabbed">Grabbed</option>
+              <option value="episode_monitored">Monitored</option>
+              <option value="episode_skipped">Skipped</option>
+              <option value="season_monitored">Season Monitored</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <div class="filter-group"><label>From</label><input type="date" id="f-from"></div>
+          <div class="filter-group"><label>To</label><input type="date" id="f-to"></div>
+          <div class="filter-actions">
+            <button class="btn-sm" onclick="applyFilters()">Apply</button>
+            <button class="btn-ghost" onclick="clearFilters()">Clear</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="live-dot" id="live-dot"></div>
+            <span class="panel-title">Live Feed</span>
+            <span class="spacer"></span>
+            <button class="btn-ghost" id="live-pause-btn" onclick="toggleLivePause()" style="font-size:12px;padding:4px 12px">Pause</button>
+          </div>
+          <div class="live-feed" id="live-feed"><div class="live-empty">Connecting...</div></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <span class="panel-title">History</span>
+            <span class="spacer"></span>
+            <span class="panel-count" id="hist-count"></span>
+          </div>
+          <div class="hist-wrap">
+            <table>
+              <thead><tr><th>Time</th><th>Event</th><th>Show</th><th>Episode</th><th>Details</th></tr></thead>
+              <tbody id="hist-body"><tr><td colspan="5" style="color:var(--muted);padding:16px">Loading...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="hist-pagination"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
     <div id="view-settings" class="view">
-      <div class="section-title" style="margin-bottom:20px">Configuration</div>
-      <div class="settings-form">
-        <div class="field">
-          <label>Poll Interval (seconds)</label>
-          <div class="hint">How often to check Tautulli for active sessions.</div>
-          <input type="number" id="s-poll" min="10" step="10">
+      <div class="settings-sections">
+        <div class="settings-group">
+          <div class="settings-group-title">Polling &amp; Lookahead</div>
+          <div class="field">
+            <label>Poll Interval (seconds)</label>
+            <div class="hint">How often to check Tautulli. Default 300s; 600s when webhook is active.</div>
+            <input type="number" id="s-poll" min="10" step="10">
+          </div>
+          <div class="field">
+            <label>Lookahead Episodes</label>
+            <div class="hint">Number of upcoming episodes to ensure are ready.</div>
+            <input type="number" id="s-lookahead" min="1" max="50">
+          </div>
+          <div class="field">
+            <label>Season End Buffer</label>
+            <div class="hint">Episodes from finale to trigger next-season pre-monitor.</div>
+            <input type="number" id="s-buffer" min="1" max="20">
+          </div>
         </div>
-        <div class="field">
-          <label>Lookahead Episodes</label>
-          <div class="hint">Number of upcoming episodes to ensure are ready.</div>
-          <input type="number" id="s-lookahead" min="1" max="50">
+        <div class="settings-group">
+          <div class="settings-group-title">Webhook Trigger</div>
+          <div class="field">
+            <div class="toggle-row">
+              <span class="toggle-label">Enable Webhook Mode</span>
+              <label class="toggle"><input type="checkbox" id="s-webhook"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="hint" style="margin-top:8px">When enabled, polling is a narrower fallback (active sessions only). The webhook is the primary trigger.</div>
+          </div>
+          <div class="field">
+            <label>Webhook Endpoint</label>
+            <div class="hint">In Tautulli, configure a Webhook notification agent for Playback Start to POST JSON to this URL. Include fields: <code style="color:var(--text)">media_type</code>, <code style="color:var(--text)">grandparent_title</code>, <code style="color:var(--text)">parent_media_index</code>, <code style="color:var(--text)">media_index</code>, <code style="color:var(--text)">grandparent_guids</code>.</div>
+            <div class="code-block" id="webhook-url-display">-</div>
+          </div>
         </div>
-        <div class="field">
-          <label>Season End Buffer</label>
-          <div class="hint">Episodes from finale to trigger next-season pre-monitor.</div>
-          <input type="number" id="s-buffer" min="1" max="20">
+        <div class="settings-group">
+          <div class="settings-group-title">Log Retention</div>
+          <div class="field">
+            <label>Retention Period (days)</label>
+            <div class="hint">Log entries older than this are purged automatically on each poll cycle.</div>
+            <input type="number" id="s-retention" min="1" max="3650">
+          </div>
         </div>
-        <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Settings</button>
-        <div class="toast" id="toast"></div>
+        <div class="settings-group">
+          <div class="settings-group-title">Notifications (Apprise)</div>
+          <div class="field">
+            <label>Apprise URL</label>
+            <div class="hint">Any Apprise-compatible URL e.g. <code style="color:var(--text)">ntfy://topic</code>, <code style="color:var(--text)">slack://...</code>. Leave blank to disable.</div>
+            <input type="text" id="s-apprise-url" placeholder="ntfy://my-episode-guard-topic">
+          </div>
+          <div class="field">
+            <label>Notify on Events</label>
+            <div class="hint">Comma-separated. Options: episode_grabbed, episode_monitored, season_monitored, error</div>
+            <input type="text" id="s-apprise-events" placeholder="episode_grabbed,error">
+          </div>
+        </div>
+        <div>
+          <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Settings</button>
+          <div class="toast" id="toast"></div>
+        </div>
       </div>
     </div>
 
   </main>
 </div>
-
 <script>
   const EVENT_LABELS = {
-    show_added:       'Show Added',
-    episode_grabbed:  'Episodes Grabbed',
-    season_monitored: 'Season Monitored',
-    episode_skipped:  'On Disk',
-    error:            'Error',
+    episode_confirmed:'Confirmed', episode_grabbed:'Grabbed', episode_monitored:'Monitored',
+    episode_skipped:'On Disk', season_monitored:'Season Monitored', error:'Error',
   };
 
-  function showView(name, btn) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-    document.getElementById('view-' + name).classList.add('active');
-    btn.classList.add('active');
-    if (name === 'settings') loadSettings();
-  }
+  function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
   function relativeTime(iso) {
-    if (!iso) return '—';
+    if (!iso) return '-';
     const diff = Math.round((Date.now() - new Date(iso)) / 1000);
-    if (diff < 5)   return 'just now';
-    if (diff < 60)  return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 5) return 'just now';
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
     return new Date(iso).toLocaleString();
   }
 
@@ -212,144 +285,213 @@
     if (!iso) return '';
     const diff = Math.round((new Date(iso) - Date.now()) / 1000);
     if (diff <= 0) return 'now';
-    if (diff < 60) return `in ${diff}s`;
-    return `in ${Math.floor(diff / 60)}m ${diff % 60}s`;
+    if (diff < 60) return 'in ' + diff + 's';
+    return 'in ' + Math.floor(diff/60) + 'm ' + (diff%60) + 's';
   }
 
-  function epLabel(season, episode) {
-    if (season == null) return '—';
-    const s = String(season).padStart(2, '0');
-    const e = String(episode ?? 0).padStart(2, '0');
-    return `S${s}E${e}`;
+  function epLabel(s,e){if(s==null)return '-';return 'S'+String(s).padStart(2,'0')+'E'+String(e??0).padStart(2,'0');}
+  function statCard(label,val){return '<div class="card"><div class="label">'+label+'</div><div class="big">'+(val??0)+'</div></div>';}
+  function badgeHtml(t){return '<span class="badge badge-'+esc(t)+'">'+esc(EVENT_LABELS[t]??t)+'</span>';}
+
+  function detailSummary(row) {
+    const d = row.details ? JSON.parse(row.details) : {};
+    const parts = [];
+    if (row.episode_count > 1) parts.push('x'+row.episode_count);
+    if (d.reason) parts.push(d.reason.replace(/_/g,' '));
+    if (d.status) parts.push(d.status.replace(/_/g,' '));
+    if (d.message) parts.push(String(d.message).slice(0,60));
+    if (d.apiStatus && d.apiStatus !== 'ok') parts.push('api: '+String(d.apiStatus).slice(0,40));
+    if (d.trigger && d.trigger !== 'poll') parts.push('via '+d.trigger);
+    return esc(parts.join(' - '));
   }
 
-  function statCard(label, value, sub) {
-    return `<div class="card">
-      <div class="label">${label}</div>
-      <div class="big">${value ?? 0}</div>
-      ${sub ? `<div class="sub">${sub}</div>` : ''}
-    </div>`;
+  function detailPills(row) {
+    const d = row.details ? JSON.parse(row.details) : {};
+    const pills = [];
+    if (row.episode_count > 1) pills.push('x'+row.episode_count+' eps');
+    if (d.reason) pills.push(d.reason.replace(/_/g,' '));
+    if (d.status) pills.push(d.status.replace(/_/g,' '));
+    if (d.trigger && d.trigger !== 'poll') pills.push('via '+d.trigger);
+    if (d.episodes) pills.push(d.episodes.slice(0,3).join(', ')+(d.episodes.length>3?'...':''));
+    if (d.apiStatus && d.apiStatus !== 'ok') pills.push('! '+String(d.apiStatus).slice(0,40));
+    if (d.message) pills.push(String(d.message).slice(0,80));
+    return pills.map(p=>'<span class="detail-pill">'+esc(p)+'</span>').join('');
+  }
+
+  let currentView = 'dashboard';
+  function showView(name, btn) {
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.getElementById('view-'+name).classList.add('active');
+    btn.classList.add('active');
+    currentView = name;
+    if (name === 'settings') loadSettings();
+    if (name === 'logs') initLogsView();
   }
 
   async function loadDashboard() {
     try {
       const res = await fetch('/api/dashboard');
       const data = await res.json();
-
-      // Status bar
-      const { lastPollAt, nextPollAt, lastError } = data.status;
+      const {lastPollAt,nextPollAt,lastError,webhookEnabled} = data.status;
       const dot = document.getElementById('status-dot');
-      dot.className = 'status-dot' + (lastError ? ' error' : '');
+      dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
       document.getElementById('poll-status').textContent =
-        `Last poll: ${relativeTime(lastPollAt)} · Next: ${countdownTo(nextPollAt)}` +
-        (lastError ? ` · Error: ${lastError}` : '');
+        'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+
+        (webhookEnabled?' - webhook':'')+(lastError?' - ! '+lastError.slice(0,40):'');
 
-      // Now playing
       const np = document.getElementById('now-playing-list');
-      if (data.nowPlaying.length === 0) {
-        np.innerHTML = '<div class="empty-state">Nothing playing right now.</div>';
-      } else {
-        np.innerHTML = data.nowPlaying.map(ep => `
-          <div class="playing-card">
-            <span class="playing-badge">LIVE</span>
-            <div>
-              <div class="playing-title">${esc(ep.showTitle)}</div>
-              <div class="playing-ep">${epLabel(ep.season, ep.episode)}</div>
-            </div>
-          </div>
-        `).join('');
-      }
+      np.innerHTML = data.nowPlaying.length
+        ? data.nowPlaying.map(ep=>'<div class="playing-card"><span class="playing-badge">LIVE</span><div><div class="playing-title">'+esc(ep.showTitle)+'</div><div class="playing-ep">'+epLabel(ep.season,ep.episode)+'</div></div></div>').join('')
+        : '<div class="empty-state">Nothing playing right now.</div>';
 
-      // Stats
-      const { allTime, last7d } = data.stats;
+      const {allTime,last7d} = data.stats;
       document.getElementById('cards-alltime').innerHTML =
-        statCard('Shows Added',       allTime.shows_added) +
-        statCard('Episodes Grabbed',  allTime.episodes_grabbed) +
+        statCard('Episodes Grabbed', allTime.episodes_grabbed)+
+        statCard('Episodes On Disk', allTime.episodes_skipped)+
         statCard('Seasons Monitored', allTime.seasons_monitored);
-
       document.getElementById('cards-7d').innerHTML =
-        statCard('Shows Added',       last7d.shows_added) +
-        statCard('Episodes Grabbed',  last7d.episodes_grabbed) +
+        statCard('Episodes Grabbed', last7d.episodes_grabbed)+
+        statCard('Episodes On Disk', last7d.episodes_skipped)+
         statCard('Seasons Monitored', last7d.seasons_monitored);
 
-      // Activity log
       const tbody = document.getElementById('activity-body');
-      if (!data.activity.length) {
-        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);padding:16px">No activity yet.</td></tr>';
-      } else {
-        tbody.innerHTML = data.activity.map(row => {
-          const details = row.details ? JSON.parse(row.details) : {};
-          let detailText = '';
-          if (row.episode_count > 1) detailText = `×${row.episode_count}`;
-          else if (details.reason) detailText = details.reason.replace(/_/g, ' ');
-          else if (details.message) detailText = esc(details.message.slice(0, 60));
-          return `<tr>
-            <td style="color:var(--muted);white-space:nowrap">${relativeTime(row.timestamp)}</td>
-            <td><span class="badge badge-${row.event_type}">${EVENT_LABELS[row.event_type] ?? row.event_type}</span></td>
-            <td>${esc(row.show_title ?? '—')}</td>
-            <td>${epLabel(row.season, row.episode)}</td>
-            <td style="color:var(--muted)">${detailText}</td>
-          </tr>`;
-        }).join('');
-      }
-    } catch (err) {
-      console.error('Dashboard load failed:', err);
+      tbody.innerHTML = data.activity.length
+        ? data.activity.map(row=>'<tr><td style="color:var(--muted);white-space:nowrap">'+relativeTime(row.timestamp)+'</td><td>'+badgeHtml(row.event_type)+'</td><td>'+esc(row.show_title??'-')+'</td><td>'+epLabel(row.season,row.episode)+'</td><td style="color:var(--muted)">'+detailSummary(row)+'</td></tr>').join('')
+        : '<tr><td colspan="5" style="color:var(--muted);padding:16px">No activity yet.</td></tr>';
+    } catch(err) { console.error('Dashboard load failed:',err); }
+  }
+
+  let sseSource=null, livePaused=false, liveBuffer=[];
+  const MAX_LIVE=100;
+
+  function initLiveFeed() {
+    if (sseSource) return;
+    sseSource = new EventSource('/api/logs/stream');
+    sseSource.onmessage = (e) => {
+      try {
+        const row = JSON.parse(e.data);
+        if (livePaused) { liveBuffer.push(row); return; }
+        prependLiveRow(row, true);
+      } catch {}
+    };
+    sseSource.onopen  = () => document.getElementById('live-dot').classList.remove('paused');
+    sseSource.onerror = () => document.getElementById('live-dot').classList.add('paused');
+  }
+
+  function prependLiveRow(row, animate) {
+    const feed = document.getElementById('live-feed');
+    const empty = feed.querySelector('.live-empty');
+    if (empty) empty.remove();
+    const d = row.details ? JSON.parse(row.details) : {};
+    let detail = '';
+    if (d.reason) detail += d.reason.replace(/_/g,' ');
+    if (d.apiStatus && d.apiStatus !== 'ok') detail += (detail?' - ':'')+'api: '+String(d.apiStatus).slice(0,40);
+    if (d.message && !d.reason) detail += (detail?' - ':'')+String(d.message).slice(0,60);
+    const el = document.createElement('div');
+    el.className = 'live-row'+(animate?' new':'');
+    el.innerHTML = '<span class="live-time">'+relativeTime(row.timestamp)+'</span>'+
+      '<span class="live-type">'+badgeHtml(row.event_type)+'</span>'+
+      '<span class="live-show">'+esc(row.show_title??'-')+'<span class="live-ep">'+epLabel(row.season,row.episode)+'</span></span>'+
+      (detail?'<span class="live-detail">'+esc(detail)+'</span>':'');
+    feed.insertBefore(el, feed.firstChild);
+    const rows = feed.querySelectorAll('.live-row');
+    if (rows.length > MAX_LIVE) rows[rows.length-1].remove();
+  }
+
+  function toggleLivePause() {
+    livePaused = !livePaused;
+    document.getElementById('live-pause-btn').textContent = livePaused ? 'Resume' : 'Pause';
+    document.getElementById('live-dot').classList.toggle('paused', livePaused);
+    if (!livePaused) {
+      for (const row of liveBuffer.reverse()) prependLiveRow(row, false);
+      liveBuffer = [];
     }
   }
+
+  let histPage=1;
+  const HIST_LIMIT=50;
+
+  function applyFilters(){histPage=1;loadHistLog();}
+  function clearFilters(){
+    ['f-show','f-type','f-from','f-to'].forEach(id=>{document.getElementById(id).value='';});
+    histPage=1; loadHistLog();
+  }
+
+  async function loadHistLog() {
+    const params = new URLSearchParams({limit:HIST_LIMIT, page:histPage});
+    const show=document.getElementById('f-show').value.trim();
+    const type=document.getElementById('f-type').value;
+    const from=document.getElementById('f-from').value;
+    const to=document.getElementById('f-to').value;
+    if (show) params.set('show',show);
+    if (type) params.set('type',type);
+    if (from) params.set('from',from+'T00:00:00Z');
+    if (to)   params.set('to',to+'T23:59:59Z');
+    try {
+      const res = await fetch('/api/logs?'+params);
+      const data = await res.json();
+      document.getElementById('hist-count').textContent = (data.total??0).toLocaleString()+' entries';
+      const tbody = document.getElementById('hist-body');
+      tbody.innerHTML = data.rows?.length
+        ? data.rows.map(row=>'<tr><td style="color:var(--muted);white-space:nowrap;font-size:12px">'+new Date(row.timestamp).toLocaleString()+'</td><td>'+badgeHtml(row.event_type)+'</td><td>'+esc(row.show_title??'-')+'</td><td style="white-space:nowrap">'+epLabel(row.season,row.episode)+'</td><td style="max-width:300px">'+detailPills(row)+'</td></tr>').join('')
+        : '<tr><td colspan="5" style="color:var(--muted);padding:16px">No entries match.</td></tr>';
+      renderPagination(data.page, data.totalPages);
+    } catch(err){console.error('Log load failed:',err);}
+  }
+
+  function renderPagination(page, totalPages) {
+    const el = document.getElementById('hist-pagination');
+    if (!totalPages || totalPages<=1){el.innerHTML='';return;}
+    el.innerHTML = '<button class="page-btn" onclick="goPage('+(page-1)+')" '+(page<=1?'disabled':'')+'>Prev</button>'+
+      '<span class="page-info">Page '+page+' of '+totalPages+'</span>'+
+      '<button class="page-btn" onclick="goPage('+(page+1)+')" '+(page>=totalPages?'disabled':'')+'>Next</button>';
+  }
+
+  function goPage(p){histPage=p;loadHistLog();}
+  function initLogsView(){initLiveFeed();loadHistLog();}
 
   async function loadSettings() {
     const res = await fetch('/api/settings');
     const s = await res.json();
-    document.getElementById('s-poll').value      = s.poll_interval_seconds;
-    document.getElementById('s-lookahead').value = s.lookahead_episodes;
-    document.getElementById('s-buffer').value    = s.season_end_buffer;
+    document.getElementById('s-poll').value         = s.poll_interval_seconds;
+    document.getElementById('s-lookahead').value    = s.lookahead_episodes;
+    document.getElementById('s-buffer').value       = s.season_end_buffer;
+    document.getElementById('s-retention').value    = s.log_retention_days;
+    document.getElementById('s-apprise-url').value  = s.apprise_url??'';
+    document.getElementById('s-apprise-events').value = s.apprise_events??'episode_grabbed';
+    document.getElementById('s-webhook').checked   = s.webhook_enabled==='1';
+    document.getElementById('webhook-url-display').textContent = location.origin+'/api/webhook';
   }
 
   async function saveSettings() {
-    const btn   = document.getElementById('save-btn');
-    const toast = document.getElementById('toast');
+    const btn = document.getElementById('save-btn');
     btn.disabled = true;
-
     const payload = {
       poll_interval_seconds: document.getElementById('s-poll').value,
       lookahead_episodes:    document.getElementById('s-lookahead').value,
       season_end_buffer:     document.getElementById('s-buffer').value,
+      log_retention_days:    document.getElementById('s-retention').value,
+      apprise_url:           document.getElementById('s-apprise-url').value,
+      apprise_events:        document.getElementById('s-apprise-events').value,
+      webhook_enabled:       document.getElementById('s-webhook').checked?'1':'0',
     };
-
     try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const data = await res.json();
-      if (res.ok) {
-        showToast('Settings saved. Watcher restarted with new interval.', 'success');
-      } else {
-        showToast(data.error ?? 'Save failed', 'error');
-      }
-    } catch (err) {
-      showToast('Network error', 'error');
-    } finally {
-      btn.disabled = false;
-    }
+      showToast(res.ok?'Settings saved.':(data.error??'Save failed'), res.ok?'success':'error');
+    } catch {showToast('Network error','error');}
+    finally {btn.disabled=false;}
   }
 
-  function showToast(msg, type) {
-    const el = document.getElementById('toast');
-    el.textContent = msg;
-    el.className = `toast ${type}`;
-    el.style.display = 'block';
-    setTimeout(() => { el.style.display = 'none'; }, 4000);
+  function showToast(msg,type){
+    const el=document.getElementById('toast');
+    el.textContent=msg; el.className='toast '+type; el.style.display='block';
+    setTimeout(()=>{el.style.display='none';},4000);
   }
 
-  function esc(str) {
-    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  // Init & auto-refresh
   loadDashboard();
-  setInterval(loadDashboard, 30000);
+  setInterval(()=>{if(currentView==='dashboard')loadDashboard();},30000);
 </script>
 </body>
 </html>
