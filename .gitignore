@@ -1,4 +1,4 @@
-episode-guard/node_modules/
+node_modules/
 data/
 *.db
 *.db-shm
