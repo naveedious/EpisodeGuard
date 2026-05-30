@@ -5,7 +5,7 @@ services:
     container_name: episodeguard
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8988:8988"
     volumes:
       - episodeguard-data:/data
     environment:

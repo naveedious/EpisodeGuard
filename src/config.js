@@ -7,7 +7,7 @@ export const env = {
   webUsername:  process.env.WEB_USERNAME,
   webPassword:  process.env.WEB_PASSWORD,
   dataDir:      process.env.DATA_DIR ?? '/data',
-  port:         parseInt(process.env.PORT ?? '3000', 10),
+  port:         parseInt(process.env.PORT ?? '8988', 10),
 };
 
 export function validateConfig() {
