@@ -319,6 +319,13 @@
   function detailPills(row) {
     const d = row.details ? JSON.parse(row.details) : {};
     const pills = [];
+    if (row.event_type === 'webhook_received') {
+      const r = d.raw ?? {};
+      if (d.tvdbId) pills.push('tvdb:' + d.tvdbId);
+      if (r.grandparent_guids) pills.push('guids: ' + (Array.isArray(r.grandparent_guids) ? r.grandparent_guids.join(', ') : r.grandparent_guids));
+      if (!d.tvdbId) pills.push('no tvdb id parsed');
+      return pills.map(p=>'<span class="detail-pill">'+esc(p)+'</span>').join('');
+    }
     if (row.episode_count > 1) pills.push('x'+row.episode_count+' eps');
     if (d.reason) pills.push(d.reason.replace(/_/g,' '));
     if (d.status) pills.push(d.status.replace(/_/g,' '));
