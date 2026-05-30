@@ -47,6 +47,8 @@
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
     .activity td{padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;}
     .activity tr:last-child td{border-bottom:none;}.activity tr:hover td{background:rgba(255,255,255,.02);}
+    .activity tr.new td{animation:rowflash .8s ease-out;}
+    @keyframes rowflash{from{background:rgba(108,99,255,.18);}to{background:transparent;}}
     .activity-wrap{max-height:420px;overflow-y:auto;border-radius:10px;}
     .section{margin-bottom:32px;}
     .settings-sections{display:flex;flex-direction:column;gap:24px;max-width:620px;}
@@ -376,18 +378,47 @@
   let sseSource=null, livePaused=false, liveBuffer=[];
   const MAX_LIVE=100;
 
-  function initLiveFeed() {
+  function initSse() {
     if (sseSource) return;
     sseSource = new EventSource('/api/logs/stream');
     sseSource.onmessage = (e) => {
       try {
         const row = JSON.parse(e.data);
-        if (livePaused) { liveBuffer.push(row); return; }
-        prependLiveRow(row, true);
+        // update live feed (logs view)
+        if (livePaused) { liveBuffer.push(row); } else { prependLiveRow(row, true); }
+        const dot = document.getElementById('live-dot');
+        if (dot) dot.classList.remove('paused');
+        // update dashboard activity table live
+        if (currentView === 'dashboard') prependDashboardRow(row);
       } catch {}
     };
-    sseSource.onopen  = () => document.getElementById('live-dot').classList.remove('paused');
-    sseSource.onerror = () => document.getElementById('live-dot').classList.add('paused');
+    sseSource.onopen  = () => { const d=document.getElementById('live-dot'); if(d)d.classList.remove('paused'); };
+    sseSource.onerror = () => { const d=document.getElementById('live-dot'); if(d)d.classList.add('paused'); };
+  }
+
+  function initLiveFeed() {
+    initSse();
+  }
+
+  function prependDashboardRow(row) {
+    const tbody = document.getElementById('activity-body');
+    if (!tbody) return;
+    // remove "no activity" placeholder if present
+    const empty = tbody.querySelector('td[colspan]');
+    if (empty) tbody.innerHTML = '';
+    const d = row.details ? JSON.parse(row.details) : {};
+    const detail = d.reason ? d.reason.replace(/_/g,' ') : (d.message ? String(d.message).slice(0,60) : '');
+    const tr = document.createElement('tr');
+    tr.className = 'new';
+    tr.innerHTML = '<td style="color:var(--muted);white-space:nowrap">'+relativeTime(row.timestamp)+'</td>'+
+      '<td>'+badgeHtml(row.event_type)+'</td>'+
+      '<td>'+esc(row.show_title??'-')+'</td>'+
+      '<td>'+epLabel(row.season,row.episode)+'</td>'+
+      '<td style="color:var(--muted)">'+esc(detail)+'</td>';
+    tbody.insertBefore(tr, tbody.firstChild);
+    const rows = tbody.querySelectorAll('tr');
+    if (rows.length > 50) rows[rows.length-1].remove();
+    setTimeout(()=>tr.classList.remove('new'), 800);
   }
 
   function prependLiveRow(row, animate) {
@@ -502,7 +533,34 @@
   }
 
   loadDashboard();
-  setInterval(()=>{if(currentView==='dashboard')loadDashboard();},30000);
+  initSse();
+  setInterval(()=>{if(currentView==='dashboard')refreshDashboardStatus();},15000);
+
+  async function refreshDashboardStatus() {
+    try {
+      const res = await fetch('/api/dashboard');
+      const data = await res.json();
+      const {lastPollAt,nextPollAt,lastError,webhookEnabled} = data.status;
+      const dot = document.getElementById('status-dot');
+      dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
+      document.getElementById('poll-status').textContent = webhookEnabled
+        ? 'Webhook' + (lastError?' - ! '+lastError.slice(0,40):'')
+        : 'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'');
+      const np = document.getElementById('now-playing-list');
+      np.innerHTML = data.nowPlaying.length
+        ? data.nowPlaying.map(ep=>'<div class="playing-card"><span class="playing-badge">LIVE</span><div><div class="playing-title">'+esc(ep.showTitle)+'</div><div class="playing-ep">'+epLabel(ep.season,ep.episode)+'</div></div></div>').join('')
+        : '<div class="empty-state">Nothing playing right now.</div>';
+      const {allTime,last7d} = data.stats;
+      document.getElementById('cards-alltime').innerHTML =
+        statCard('Episodes Grabbed', allTime.episodes_grabbed)+
+        statCard('Episodes On Disk', allTime.episodes_skipped)+
+        statCard('Seasons Monitored', allTime.seasons_monitored);
+      document.getElementById('cards-7d').innerHTML =
+        statCard('Episodes Grabbed', last7d.episodes_grabbed)+
+        statCard('Episodes On Disk', last7d.episodes_skipped)+
+        statCard('Seasons Monitored', last7d.seasons_monitored);
+    } catch(err) { console.error('Status refresh failed:',err); }
+  }
 </script>
 </body>
 </html>
