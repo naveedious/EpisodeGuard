@@ -43,10 +43,14 @@ export async function handleWebhookTrigger(ep) {
   const { showTitle, season, episode, tvdbId } = ep;
   const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
   console.log('[watcher] Webhook trigger: ' + label);
+  logEvent({ event_type: 'webhook_received', show_title: showTitle, season, episode,
+    details: { trigger: 'webhook', tvdbId } });
   try {
     const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
     if (!series) {
       console.warn('[watcher] ' + label + ' not found in Sonarr (webhook) - skipping');
+      logEvent({ event_type: 'error', show_title: showTitle, season, episode,
+        details: { message: 'Show not found in Sonarr', trigger: 'webhook', tvdbId } });
       return;
     }
     await processEpisode(ep, series, 'webhook');

@@ -41,6 +41,7 @@
     .badge-episode_skipped{background:rgba(107,112,128,.2);color:var(--muted);}
     .badge-season_monitored{background:rgba(249,115,22,.2);color:var(--orange);}
     .badge-error{background:rgba(239,68,68,.2);color:var(--red);}
+    .badge-webhook_received{background:rgba(34,197,94,.15);color:var(--green);}
     .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .activity table{width:100%;border-collapse:collapse;}
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
@@ -277,6 +278,7 @@
   const EVENT_LABELS = {
     episode_confirmed:'Confirmed', episode_grabbed:'Grabbed', episode_monitored:'Monitored',
     episode_skipped:'On Disk', season_monitored:'Season Monitored', error:'Error',
+    webhook_received:'Webhook',
   };
 
   function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
