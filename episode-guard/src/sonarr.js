@@ -166,7 +166,8 @@ export async function checkSeasonEndAndPreload(seriesId, season, episode) {
     return true;
   }
 
-  // Next season has aired — leave monitored status alone, search for missing episodes only
+  // Next season has aired — leave monitored status alone, search missing episodes by ID
+  // (EpisodeSearch by ID bypasses monitored status, unlike SeasonSearch which skips unmonitored)
   const missing = nextSeasonEps.filter(
     e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() <= now
   );
@@ -175,8 +176,9 @@ export async function checkSeasonEndAndPreload(seriesId, season, episode) {
     return false;
   }
 
-  console.log('[sonarr] S' + pad(nextSeason) + ' has aired, ' + missing.length + ' episode(s) missing - SeasonSearch seriesId=' + seriesId);
-  await sonarrReq('POST', '/command', { name: 'SeasonSearch', seriesId, seasonNumber: nextSeason });
+  const ids = missing.map(e => e.id);
+  console.log('[sonarr] S' + pad(nextSeason) + ' has aired, EpisodeSearch for ' + ids.length + ' missing episode(s): ids=[' + ids + ']');
+  await sonarrReq('POST', '/command', { name: 'EpisodeSearch', episodeIds: ids });
   return true;
 }
 
