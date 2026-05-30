@@ -129,7 +129,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode) {
     }
   }
 
-  return { monitored: unmonitored.length, grabbed: missing.length, skipped: onDisk.length, future: future.length, actions };
+  return { monitored: futureUnmonitored.length, grabbed: missing.length, skipped: onDisk.length, future: future.length, actions };
 }
 
 export async function checkSeasonEndAndPreload(seriesId, season, episode) {
