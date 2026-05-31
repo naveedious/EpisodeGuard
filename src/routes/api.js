@@ -10,6 +10,7 @@ router.get('/status', (req, res) => {
   res.json({
     lastPollAt: state.lastPollAt, nextPollAt: state.nextPollAt,
     isRunning: state.isRunning, lastError: state.lastError, webhookEnabled: state.webhookEnabled,
+    lastWebhookAt: state.lastWebhookAt,
   });
 });
 
@@ -113,7 +114,4 @@ router.post('/settings', (req, res) => {
 
   setSettings(updates);
   if (updates.poll_interval_seconds || updates.webhook_enabled !== undefined) restartPolling();
-  res.json({ ok: true, settings: getAllSettings() });
-});
-
-export default router;
+  res.json({ ok: true, settings: getAllSet

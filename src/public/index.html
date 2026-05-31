@@ -346,11 +346,11 @@
     try {
       const res = await fetch('/api/dashboard');
       const data = await res.json();
-      const {lastPollAt,nextPollAt,lastError,webhookEnabled} = data.status;
+      const {lastPollAt,nextPollAt,lastError,webhookEnabled,lastWebhookAt} = data.status;
       const dot = document.getElementById('status-dot');
       dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
       document.getElementById('poll-status').textContent = webhookEnabled
-        ? 'Webhook' + (lastError?' - ! '+lastError.slice(0,40):'')
+        ? 'Webhook: '+(lastWebhookAt?relativeTime(lastWebhookAt):'never received')+' - Poll fallback: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'')
         : 'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'');
 
       const np = document.getElementById('now-playing-list');
@@ -540,11 +540,11 @@
     try {
       const res = await fetch('/api/dashboard');
       const data = await res.json();
-      const {lastPollAt,nextPollAt,lastError,webhookEnabled} = data.status;
+      const {lastPollAt,nextPollAt,lastError,webhookEnabled,lastWebhookAt} = data.status;
       const dot = document.getElementById('status-dot');
       dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
       document.getElementById('poll-status').textContent = webhookEnabled
-        ? 'Webhook' + (lastError?' - ! '+lastError.slice(0,40):'')
+        ? 'Webhook: '+(lastWebhookAt?relativeTime(lastWebhookAt):'never received')+' - Poll fallback: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'')
         : 'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'');
       const np = document.getElementById('now-playing-list');
       np.innerHTML = data.nowPlaying.length
@@ -556,11 +556,4 @@
         statCard('Episodes Monitored', allTime.episodes_monitored)+
         statCard('Seasons Monitored', allTime.seasons_monitored);
       document.getElementById('cards-7d').innerHTML =
-        statCard('Episodes Grabbed', last7d.episodes_grabbed)+
-        statCard('Episodes Monitored', last7d.episodes_monitored)+
-        statCard('Seasons Monitored', last7d.seasons_monitored);
-    } catch(err) { console.error('Status refresh failed:',err); }
-  }
-</script>
-</body>
-</html>
+        statCard('Episodes Grabbed', last7d.episod

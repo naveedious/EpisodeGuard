@@ -13,9 +13,13 @@ export const state = {
   isRunning:      false,
   lastError:      null,
   webhookEnabled: false,
+  lastWebhookAt:  null,
 };
 
 const processed = new Map();
+// Episodes recently processed by webhook: key -> timestamp ms. Dedupes poll.
+const webhookDeduped = new Map();
+const WEBHOOK_DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
 let pollTimer = null;
 
 export function startPolling() {
@@ -43,6 +47,9 @@ export async function handleWebhookTrigger(ep) {
   const { showTitle, season, episode, tvdbId } = ep;
   const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
   console.log('[watcher] Webhook trigger: ' + label);
+  state.lastWebhookAt = new Date().toISOString();
+  const dedupKey = showTitle + '-S' + pad(season) + 'E' + pad(episode);
+  webhookDeduped.set(dedupKey, Date.now());
   logEvent({ event_type: 'webhook_received', show_title: showTitle, season, episode,
     details: { trigger: 'webhook', tvdbId } });
   try {
@@ -108,6 +115,18 @@ async function runWatcher() {
     const { sessionKey, showTitle, season, episode, tvdbId } = ep;
     const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
     try {
+      // Dedup: skip if webhook already handled this episode recently
+      const dedupKey = showTitle + '-S' + pad(season) + 'E' + pad(episode);
+      const dedupTs = webhookDeduped.get(dedupKey);
+      if (dedupTs && Date.now() - dedupTs < WEBHOOK_DEDUP_TTL_MS) {
+        console.log('[watcher] ' + label + ' already handled by webhook - skipping poll');
+        continue;
+      }
+      // Prune stale dedup entries
+      for (const [k, ts] of webhookDeduped) {
+        if (Date.now() - ts >= WEBHOOK_DEDUP_TTL_MS) webhookDeduped.delete(k);
+      }
+
       const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
       if (!series) {
         console.warn('[watcher] ' + label + ' not found in Sonarr - skipping');
@@ -186,22 +205,4 @@ async function processEpisode(ep, series, trigger) {
       console.log('[watcher] ' + label + ' - next ' + result.skipped + ' episode(s) already on disk');
     }
     if (result.future > 0) {
-      const futureEps = result.actions.filter(a => a.action === 'skipped_future_airdate');
-      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
-        episode_count: result.future, details: { reason: 'not_yet_aired', trigger,
-          episodes: futureEps.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
-          earliest_airdate: futureEps[0]?.airDateUtc } });
-      console.log('[watcher] ' + label + ' - ' + result.future + ' future episode(s) skipped (not yet aired)');
-    }
-  }
-
-  // 3. Season-end pre-load
-  const preloaded = await checkSeasonEndAndPreload(series.id, season, episode);
-  if (preloaded) {
-    logEvent({ event_type: 'season_monitored', show_title: showTitle, season: season + 1,
-      details: { reason: 'season_end_preload', trigger } });
-    console.log('[watcher] ' + label + ' - near season end, pre-monitoring S' + pad(season + 1));
-  }
-}
-
-function pad(n) { return String(n).padStart(2, '0'); }
+      const futureEps = result.actions.filter(a => a.
