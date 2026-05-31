@@ -309,25 +309,29 @@
   function detailSummary(row) {
     const d = row.details ? JSON.parse(row.details) : {};
     const parts = [];
-    if (row.episode_count > 1) parts.push('x'+row.episode_count);
-    if (d.reason) parts.push(d.reason.replace(/_/g,' '));
-    if (d.status) parts.push(d.status.replace(/_/g,' '));
-    if (d.message) parts.push(String(d.message).slice(0,60));
+    if (d.message) {
+      parts.push(d.message);
+    } else {
+      if (row.episode_count > 1) parts.push('x'+row.episode_count);
+      if (d.reason) parts.push(d.reason.replace(/_/g,' '));
+      if (d.status) parts.push(d.status.replace(/_/g,' '));
+    }
     if (d.apiStatus && d.apiStatus !== 'ok') parts.push('api: '+String(d.apiStatus).slice(0,40));
-    if (d.trigger && d.trigger !== 'poll') parts.push('via '+d.trigger);
     return esc(parts.join(' - '));
   }
 
   function detailPills(row) {
     const d = row.details ? JSON.parse(row.details) : {};
     const pills = [];
-    if (row.episode_count > 1) pills.push('x'+row.episode_count+' eps');
-    if (d.reason) pills.push(d.reason.replace(/_/g,' '));
-    if (d.status) pills.push(d.status.replace(/_/g,' '));
-    if (d.trigger && d.trigger !== 'poll') pills.push('via '+d.trigger);
-    if (d.episodes) pills.push(d.episodes.slice(0,3).join(', ')+(d.episodes.length>3?'...':''));
+    if (d.message) {
+      pills.push(d.message);
+    } else {
+      if (row.episode_count > 1) pills.push('x'+row.episode_count+' eps');
+      if (d.reason) pills.push(d.reason.replace(/_/g,' '));
+      if (d.status) pills.push(d.status.replace(/_/g,' '));
+      if (d.episodes) pills.push(d.episodes.slice(0,3).join(', ')+(d.episodes.length>3?'...':''));
+    }
     if (d.apiStatus && d.apiStatus !== 'ok') pills.push('! '+String(d.apiStatus).slice(0,40));
-    if (d.message) pills.push(String(d.message).slice(0,80));
     return pills.map(p=>'<span class="detail-pill">'+esc(p)+'</span>').join('');
   }
 

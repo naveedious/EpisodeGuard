@@ -51,7 +51,7 @@ export async function handleWebhookTrigger(ep) {
   const dedupKey = showTitle + '-S' + pad(season) + 'E' + pad(episode);
   webhookDeduped.set(dedupKey, Date.now());
   logEvent({ event_type: 'webhook_received', show_title: showTitle, season, episode,
-    details: { trigger: 'webhook', tvdbId } });
+    details: { message: 'Received via webhook', trigger: 'webhook', tvdbId } });
   try {
     const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
     if (!series) {
@@ -159,7 +159,7 @@ async function processEpisode(ep, series, trigger) {
   // Currently playing/watched = on disk by definition — no Sonarr check needed
   console.log('[watcher] ' + label + ' playing - on disk');
   logEvent({ event_type: 'episode_confirmed', show_title: showTitle, season, episode,
-    details: { status: 'on_disk', trigger, reason: 'playing' } });
+    details: { message: 'Currently playing', trigger } });
 
   // Fetch current + next season once, share across both checks
   console.log('[watcher] Fetching S' + pad(season) + '+S' + pad(season + 1) + ' episodes for ' + label);
@@ -169,46 +169,36 @@ async function processEpisode(ep, series, trigger) {
   console.log('[watcher] Checking upcoming for ' + label);
   const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded);
 
-  if (result.grabbed > 0 || result.monitored > 0) {
-    const searchedActions  = result.actions.filter(a => a.action === 'search_triggered');
-    const monitoredActions = result.actions.filter(a => a.action === 'set_monitored');
-
-    if (monitoredActions.length) {
-      logEvent({ event_type: 'episode_monitored', show_title: showTitle, season, episode,
-        episode_count: monitoredActions.length,
-        details: { reason: 'upcoming_unmonitored', trigger,
-          episodes: monitoredActions.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
-          apiCall: monitoredActions[0].apiCall, apiStatus: monitoredActions[0].apiStatus } });
-    }
-    if (searchedActions.length) {
-      logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season, episode,
-        episode_count: searchedActions.length,
-        details: { reason: 'upcoming_not_on_disk', trigger,
-          episodes: searchedActions.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
-          apiCall: searchedActions[0].apiCall, apiStatus: searchedActions[0].apiStatus } });
-    }
-    console.log('[watcher] ' + label + ' - monitored ' + result.monitored + ', grabbed ' + result.grabbed + ', skipped ' + result.skipped);
-  } else if (result.skipped > 0 || result.future > 0) {
-    if (result.skipped > 0) {
-      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
-        episode_count: result.skipped, details: { reason: 'upcoming_on_disk', trigger } });
-      console.log('[watcher] ' + label + ' - next ' + result.skipped + ' episode(s) already on disk');
-    }
-    if (result.future > 0) {
-      const futureEps = result.actions.filter(a => a.action === 'skipped_future_airdate');
-      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season, episode,
-        episode_count: result.future, details: { reason: 'not_yet_aired', trigger,
-          episodes: futureEps.map(a => 'S' + pad(a.season) + 'E' + pad(a.episode)),
-          earliest_airdate: futureEps[0]?.airDateUtc } });
-      console.log('[watcher] ' + label + ' - ' + result.future + ' future episode(s) skipped (not yet aired)');
+  // Log one row per upcoming episode action
+  for (const a of result.actions) {
+    const epSeason  = a.season;
+    const epEpisode = a.episode;
+    if (a.action === 'skipped_on_disk') {
+      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: 'Already on disk, no action needed', trigger } });
+    } else if (a.action === 'skipped_future_airdate') {
+      const airMsg = a.airDateUtc ? ' - airs ' + new Date(a.airDateUtc).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: 'Not aired yet' + airMsg, trigger, airDateUtc: a.airDateUtc } });
+    } else if (a.action === 'set_monitored') {
+      const airMsg = a.airDateUtc ? ' - airs ' + new Date(a.airDateUtc).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+      logEvent({ event_type: 'episode_monitored', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: 'Set monitored' + airMsg, trigger,
+          apiCall: a.apiCall, apiStatus: a.apiStatus } });
+    } else if (a.action === 'search_triggered') {
+      logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: 'Search triggered - missing episode', trigger,
+          apiCall: a.apiCall, apiStatus: a.apiStatus } });
     }
   }
+
+  console.log('[watcher] ' + label + ' - monitored ' + result.monitored + ', grabbed ' + result.grabbed + ', skipped ' + result.skipped + ', future ' + result.future);
 
   // 2. Season-end pre-load (reuses preloaded episodes — no extra API call)
   const seasonPreloaded = await checkSeasonEndAndPreload(series.id, season, episode, preloaded);
   if (seasonPreloaded) {
     logEvent({ event_type: 'season_monitored', show_title: showTitle, season: season + 1,
-      details: { reason: 'season_end_preload', trigger } });
+      details: { message: 'Near season end - S' + pad(season + 1) + ' pre-monitored', trigger } });
     console.log('[watcher] ' + label + ' - near season end, pre-monitoring S' + pad(season + 1));
   }
 }

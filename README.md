@@ -25,14 +25,14 @@ You can also point Tautulli webhooks at Episode Guard so it reacts the moment yo
 | Event | What it means |
 |---|---|
 | **Webhook** | Tautulli sent a play event — Episode Guard woke up immediately |
-| **Confirmed** | Current episode is playing — on disk by definition, no check needed |
-| **Grabbed** | Triggered a search in Sonarr for a missing episode |
-| **On Disk** | Upcoming episode(s) already on disk, no action needed |
-| **Monitored** | Upcoming episode wasn't monitored — fixed it so Sonarr grabs it when it airs |
-| **Season Monitored** | Near season end — next season marked monitored so Sonarr picks it up on release |
+| **Confirmed** | Currently playing — on disk by definition |
+| **Grabbed** | Search triggered in Sonarr for a missing episode |
+| **On Disk** | Upcoming episode already on disk, or not aired yet — one row per episode |
+| **Monitored** | Upcoming episode wasn't monitored — fixed so Sonarr grabs it when it airs |
+| **Season Monitored** | Near season end — next season marked monitored |
 | **Error** | Something went wrong — check the details column |
 
-The details column shows the trigger (`via webhook` or `via poll`), reason, and episode count where relevant. Episodes marked `not yet aired` are left alone until their air date.
+Each upcoming episode gets its own row so you can see exactly what was checked and why. The details column shows a plain-English summary — for unaired episodes it includes the expected air date.
 
 ---
 
