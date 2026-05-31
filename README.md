@@ -32,9 +32,28 @@ Each upcoming episode gets its own row so you can see exactly what was checked a
 
 ## Quick start
 
+Set your environment variables in the `environment` section of your `docker-compose.yml`:
+
+```yaml
+services:
+  episodeguard:
+    image: episodeguard
+    environment:
+      TAUTULLI_URL: http://tautulli:8181
+      TAUTULLI_API_KEY: your_tautulli_api_key
+      SONARR_URL: http://sonarr:8989
+      SONARR_API_KEY: your_sonarr_api_key
+      SECRET_KEY: your_random_secret
+      APP_URL: http://episodeguard.yourdomain.com
+    ports:
+      - "8988:8988"
+    volumes:
+      - ./data:/data
+```
+
+Then start it:
+
 ```bash
-cp .env.example .env
-# fill in your API keys and set SECRET_KEY
 docker compose up -d
 ```
 
