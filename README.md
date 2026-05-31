@@ -101,7 +101,7 @@ Season and episode numbers must be quoted strings — Tautulli's JSON validator 
 
 When webhook mode is enabled the dashboard status bar shows **Webhook active**. To confirm webhooks are landing, check the activity log — successful webhook events appear as a **Webhook** row followed immediately by the processing results. If you play something and see no Webhook row, Tautulli isn't reaching the endpoint — check the URL and that Episode Guard is accessible from the Tautulli host.
 
-Episodes triggered by webhook are skipped by the next poll (10-minute dedup window) to avoid double-processing.
+Episodes triggered by webhook are skipped by polling for 4 hours to avoid double-processing. Polling still runs as a fallback for any play events Tautulli fails to deliver.
 
 ---
 

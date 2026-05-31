@@ -19,7 +19,7 @@ export const state = {
 const processed = new Map();
 // Episodes recently processed by webhook: key -> timestamp ms. Dedupes poll.
 const webhookDeduped = new Map();
-const WEBHOOK_DEDUP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const WEBHOOK_DEDUP_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours — covers any episode length
 let pollTimer = null;
 
 export function startPolling() {
