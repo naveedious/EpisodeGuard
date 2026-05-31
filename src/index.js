@@ -23,11 +23,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
 
-// Webhook endpoint is unauthenticated - Tautulli can't send basic auth
-app.post('/api/webhook', (req, res, next) => next());
-
-// All other routes require basic auth
-app.use(basicAuth);
+// All routes require basic auth except the webhook (Tautulli can't send credentials)
+app.use((req, res, next) => {
+  if (req.method === 'POST' && req.path === '/api/webhook') return next();
+  return basicAuth(req, res, next);
+});
 
 // API
 app.use('/api', apiRouter);
