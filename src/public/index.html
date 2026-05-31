@@ -350,7 +350,7 @@
       const dot = document.getElementById('status-dot');
       dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
       document.getElementById('poll-status').textContent = webhookEnabled
-        ? 'Webhook: '+(lastWebhookAt?relativeTime(lastWebhookAt):'never received')+' - Poll fallback: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'')
+        ? 'Webhook active'+(lastError?' - ! '+lastError.slice(0,40):'')
         : 'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'');
 
       const np = document.getElementById('now-playing-list');
@@ -544,7 +544,7 @@
       const dot = document.getElementById('status-dot');
       dot.className = 'status-dot'+(lastError?' error':webhookEnabled?' webhook':'');
       document.getElementById('poll-status').textContent = webhookEnabled
-        ? 'Webhook: '+(lastWebhookAt?relativeTime(lastWebhookAt):'never received')+' - Poll fallback: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'')
+        ? 'Webhook active'+(lastError?' - ! '+lastError.slice(0,40):'')
         : 'Last: '+relativeTime(lastPollAt)+' - Next: '+countdownTo(nextPollAt)+(lastError?' - ! '+lastError.slice(0,40):'');
       const np = document.getElementById('now-playing-list');
       np.innerHTML = data.nowPlaying.length

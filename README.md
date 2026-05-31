@@ -23,14 +23,17 @@ You can also point Tautulli webhooks at Episode Guard so it reacts the moment yo
 
 ## Activity log
 
-| Status | What it means |
+| Event | What it means |
 |---|---|
 | **Webhook** | Tautulli sent a play event — Episode Guard woke up immediately |
-| **Confirmed** | Episode was already on disk, nothing to do |
+| **Confirmed** | Current episode is on disk, nothing to do |
 | **Grabbed** | Triggered a search in Sonarr for a missing episode |
-| **Monitored** | An upcoming episode wasn't monitored — fixed it so Sonarr grabs it when it airs |
-| **Season Monitored** | Next season isn't out yet — marked it monitored so Sonarr picks it up on release |
+| **On Disk** | Upcoming episode(s) already on disk, no action needed |
+| **Monitored** | Upcoming episode wasn't monitored — fixed it so Sonarr grabs it when it airs |
+| **Season Monitored** | Near season end — next season marked monitored so Sonarr picks it up on release |
 | **Error** | Something went wrong — check the details column |
+
+The details column shows the trigger (`via webhook` or `via poll`), reason, and episode count where relevant. Episodes marked `not yet aired` are left alone until their air date.
 
 ---
 
@@ -97,7 +100,9 @@ These live in the dashboard Settings tab, stored in SQLite rather than env vars:
 
 Season and episode numbers must be quoted strings — Tautulli's JSON validator rejects bare integers in templates. The handler parses them with `parseInt` so this is fine.
 
-When a webhook is received the dashboard status bar shows **Webhook: X ago**. If it shows **never received** after playing something, Tautulli isn't reaching the endpoint — check the URL and that Episode Guard is accessible from the Tautulli host.
+When webhook mode is enabled the dashboard status bar shows **Webhook active**. To confirm webhooks are landing, check the activity log — successful webhook events appear as a **Webhook** row followed immediately by the processing results. If you play something and see no Webhook row, Tautulli isn't reaching the endpoint — check the URL and that Episode Guard is accessible from the Tautulli host.
+
+Episodes triggered by webhook are skipped by the next poll (10-minute dedup window) to avoid double-processing.
 
 ---
 
