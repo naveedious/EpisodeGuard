@@ -1,7 +1,7 @@
 import { getPlayingEpisodes, getRecentlyWatchedEpisodes } from './tautulli.js';
 import {
   findSeriesByTvdbId,
-  confirmCurrentEpisode,
+  getTwoSeasonEpisodes,
   ensureUpcomingEpisodes,
   checkSeasonEndAndPreload,
 } from './sonarr.js';
@@ -156,28 +156,18 @@ async function processEpisode(ep, series, trigger) {
   const { showTitle, season, episode } = ep;
   const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
 
-  // 1. Confirm current episode
-  console.log('[watcher] Confirming current episode ' + label + ' in Sonarr');
-  const confirmation = await confirmCurrentEpisode(series.id, season, episode);
+  // Currently playing/watched = on disk by definition — no Sonarr check needed
+  console.log('[watcher] ' + label + ' playing - on disk');
+  logEvent({ event_type: 'episode_confirmed', show_title: showTitle, season, episode,
+    details: { status: 'on_disk', trigger, reason: 'playing' } });
 
-  if (confirmation.status === 'not_found') {
-    console.log('[watcher] ' + label + ' not found in Sonarr episode list');
-    logEvent({ event_type: 'error', show_title: showTitle, season, episode,
-      details: { message: 'Episode not found in Sonarr episode list', trigger } });
-  } else if (confirmation.status === 'on_disk') {
-    console.log('[watcher] ' + label + ' confirmed on disk');
-    logEvent({ event_type: 'episode_confirmed', show_title: showTitle, season, episode,
-      details: { status: 'on_disk', trigger } });
-  } else if (confirmation.status === 'searched') {
-    console.log('[watcher] ' + label + ' not on disk - search triggered (monitored=' + confirmation.monitored + ')');
-    logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season, episode, episode_count: 1,
-      details: { reason: 'current_episode_not_on_disk', trigger, monitored: confirmation.monitored,
-        apiCall: { method: 'POST', path: '/command', body: { name: 'EpisodeSearch' } }, apiStatus: 'ok' } });
-  }
+  // Fetch current + next season once, share across both checks
+  console.log('[watcher] Fetching S' + pad(season) + '+S' + pad(season + 1) + ' episodes for ' + label);
+  const preloaded = await getTwoSeasonEpisodes(series.id, season);
 
-  // 2. Ensure upcoming episodes
+  // 1. Ensure upcoming episodes
   console.log('[watcher] Checking upcoming for ' + label);
-  const result = await ensureUpcomingEpisodes(series.id, season, episode);
+  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded);
 
   if (result.grabbed > 0 || result.monitored > 0) {
     const searchedActions  = result.actions.filter(a => a.action === 'search_triggered');
@@ -214,9 +204,9 @@ async function processEpisode(ep, series, trigger) {
     }
   }
 
-  // 3. Season-end pre-load
-  const preloaded = await checkSeasonEndAndPreload(series.id, season, episode);
-  if (preloaded) {
+  // 2. Season-end pre-load (reuses preloaded episodes — no extra API call)
+  const seasonPreloaded = await checkSeasonEndAndPreload(series.id, season, episode, preloaded);
+  if (seasonPreloaded) {
     logEvent({ event_type: 'season_monitored', show_title: showTitle, season: season + 1,
       details: { reason: 'season_end_preload', trigger } });
     console.log('[watcher] ' + label + ' - near season end, pre-monitoring S' + pad(season + 1));

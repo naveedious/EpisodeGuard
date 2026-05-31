@@ -25,32 +25,31 @@ async function sonarrReq(method, path, body) {
 }
 
 export async function findSeriesByTvdbId(tvdbId) {
-  const all = await sonarrReq('GET', '/series');
-  return all.find(s => s.tvdbId === tvdbId) ?? null;
+  const results = await sonarrReq('GET', '/series?tvdbId=' + tvdbId);
+  return Array.isArray(results) ? (results[0] ?? null) : (results ?? null);
 }
 
-async function getEpisodes(seriesId) {
-  return sonarrReq('GET', '/episode?seriesId=' + seriesId);
+async function getSeasonEpisodes(seriesId, season) {
+  return sonarrReq('GET', '/episode?seriesId=' + seriesId + '&seasonNumber=' + season);
 }
 
-export async function confirmCurrentEpisode(seriesId, season, episode) {
-  const allEps = await getEpisodes(seriesId);
-  const ep = allEps.find(e => e.seasonNumber === season && e.episodeNumber === episode);
-
-  if (!ep) return { status: 'not_found' };
-
-  if (ep.hasFile) return { status: 'on_disk', episodeId: ep.id };
-
-  // Search directly — do not touch monitored status (Sonarr searches regardless)
-  console.log('[sonarr] Triggering EpisodeSearch for episode id=' + ep.id + ' (not on disk, monitored=' + ep.monitored + ')');
-  await sonarrReq('POST', '/command', { name: 'EpisodeSearch', episodeIds: [ep.id] });
-
-  return { status: 'searched', episodeId: ep.id, monitored: ep.monitored };
+export async function getTwoSeasonEpisodes(seriesId, season) {
+  const [current, next] = await Promise.all([
+    getSeasonEpisodes(seriesId, season),
+    getSeasonEpisodes(seriesId, season + 1),
+  ]);
+  return { current: current ?? [], next: next ?? [] };
 }
 
-export async function ensureUpcomingEpisodes(seriesId, season, episode) {
+
+export async function ensureUpcomingEpisodes(seriesId, season, episode, preloaded) {
   const lookahead = parseInt(getSetting('lookahead_episodes'), 10);
-  const allEps = await getEpisodes(seriesId);
+  const allEps = preloaded
+    ? [...preloaded.current, ...preloaded.next]
+    : await (async () => {
+        const { current, next } = await getTwoSeasonEpisodes(seriesId, season);
+        return [...current, ...next];
+      })();
 
   allEps.sort((a, b) => a.seasonNumber - b.seasonNumber || a.episodeNumber - b.episodeNumber);
 
@@ -132,11 +131,12 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode) {
   return { monitored: futureUnmonitored.length, grabbed: missing.length, skipped: onDisk.length, future: future.length, actions };
 }
 
-export async function checkSeasonEndAndPreload(seriesId, season, episode) {
-  const buffer  = parseInt(getSetting('season_end_buffer'), 10);
-  const allEps  = await getEpisodes(seriesId);
+export async function checkSeasonEndAndPreload(seriesId, season, episode, preloaded) {
+  const buffer = parseInt(getSetting('season_end_buffer'), 10);
 
-  const seasonEps = allEps.filter(e => e.seasonNumber === season && e.seasonNumber > 0);
+  const seasonEps = preloaded
+    ? preloaded.current.filter(e => e.seasonNumber > 0)
+    : (await getSeasonEpisodes(seriesId, season)).filter(e => e.seasonNumber > 0);
   if (!seasonEps.length) return false;
 
   const lastEpNum    = Math.max(...seasonEps.map(e => e.episodeNumber));
@@ -144,40 +144,55 @@ export async function checkSeasonEndAndPreload(seriesId, season, episode) {
   if (epsRemaining > buffer) return false;
 
   const nextSeason    = season + 1;
-  const nextSeasonEps = allEps.filter(e => e.seasonNumber === nextSeason);
+  const nextSeasonEps = preloaded
+    ? preloaded.next
+    : (await getSeasonEpisodes(seriesId, nextSeason));
   if (!nextSeasonEps.length) return false;
 
   const now = Date.now();
-  const firstEp = [...nextSeasonEps].sort((a, b) => a.episodeNumber - b.episodeNumber)[0];
+  const sortedNext = [...nextSeasonEps].sort((a, b) => a.episodeNumber - b.episodeNumber);
+  const firstEp    = sortedNext[0];
   const firstAirMs = firstEp.airDateUtc ? new Date(firstEp.airDateUtc).getTime() : null;
-  const hasAired = firstAirMs !== null && firstAirMs <= now;
 
-  if (!hasAired) {
-    // Next season not out yet — monitor only so Sonarr auto-grabs on release, no search
+  // Partially or fully unaired next season — monitor whole season if not already
+  const hasFullyAired = firstAirMs !== null && firstAirMs <= now &&
+    nextSeasonEps.every(e => !e.airDateUtc || new Date(e.airDateUtc).getTime() <= now);
+  const hasPartiallyOrNotAired = !hasFullyAired;
+
+  if (hasPartiallyOrNotAired) {
     const series        = await sonarrReq('GET', '/series/' + seriesId);
     const nextSeasonObj = series.seasons.find(s => s.seasonNumber === nextSeason);
     if (!nextSeasonObj || nextSeasonObj.monitored) {
       console.log('[sonarr] S' + pad(nextSeason) + ' already monitored or not found, no change');
-      return false;
+      // Still search any aired-but-missing episodes even if season is monitored
+    } else {
+      nextSeasonObj.monitored = true;
+      console.log('[sonarr] Setting S' + pad(nextSeason) + ' to monitored (not fully aired) for seriesId=' + seriesId);
+      await sonarrReq('PUT', '/series/' + seriesId, series);
     }
-    nextSeasonObj.monitored = true;
-    console.log('[sonarr] Setting S' + pad(nextSeason) + ' to monitored (not yet aired) for seriesId=' + seriesId);
-    await sonarrReq('PUT', '/series/' + seriesId, series);
+    // Search any episodes that have aired but are missing
+    const airedMissing = nextSeasonEps.filter(
+      e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() <= now
+    );
+    if (airedMissing.length) {
+      const ids = airedMissing.map(e => e.id);
+      console.log('[sonarr] S' + pad(nextSeason) + ' partial aired, EpisodeSearch for ' + ids.length + ' missing episode(s): ids=[' + ids + ']');
+      await sonarrReq('POST', '/command', { name: 'EpisodeSearch', episodeIds: ids });
+    }
     return true;
   }
 
-  // Next season has aired — leave monitored status alone, search missing episodes by ID
-  // (EpisodeSearch by ID bypasses monitored status, unlike SeasonSearch which skips unmonitored)
+  // Next season fully aired — search all missing episodes by ID
   const missing = nextSeasonEps.filter(
     e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() <= now
   );
   if (!missing.length) {
-    console.log('[sonarr] S' + pad(nextSeason) + ' has aired, all episodes on disk - no action');
+    console.log('[sonarr] S' + pad(nextSeason) + ' fully aired, all episodes on disk - no action');
     return false;
   }
 
   const ids = missing.map(e => e.id);
-  console.log('[sonarr] S' + pad(nextSeason) + ' has aired, EpisodeSearch for ' + ids.length + ' missing episode(s): ids=[' + ids + ']');
+  console.log('[sonarr] S' + pad(nextSeason) + ' fully aired, EpisodeSearch for ' + ids.length + ' missing episode(s): ids=[' + ids + ']');
   await sonarrReq('POST', '/command', { name: 'EpisodeSearch', episodeIds: ids });
   return true;
 }
