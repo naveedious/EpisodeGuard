@@ -92,14 +92,15 @@ router.get('/settings', (req, res) => { res.json(getAllSettings()); });
 
 router.post('/settings', (req, res) => {
   const allowed = ['poll_interval_seconds','lookahead_episodes','season_end_buffer',
-                   'log_retention_days','apprise_url','apprise_events','webhook_enabled'];
+                   'log_retention_days','apprise_url','apprise_events','webhook_enabled',
+                   'webhook_secret','session_max_age_hours'];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
   }
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid settings provided' });
 
-  const numerics = ['poll_interval_seconds','lookahead_episodes','season_end_buffer','log_retention_days'];
+  const numerics = ['poll_interval_seconds','lookahead_episodes','season_end_buffer','log_retention_days','session_max_age_hours'];
   for (const key of numerics) {
     if (updates[key] !== undefined) {
       const n = parseInt(updates[key], 10);

@@ -108,6 +108,25 @@
     .page-btn{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer;}
     .page-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}.page-btn:disabled{opacity:.35;cursor:default;}
     .page-info{font-size:13px;color:var(--muted);}
+    .user-menu{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);}
+    .user-menu .logout-btn{background:none;border:1px solid var(--border);color:var(--muted);border-radius:5px;padding:4px 12px;font-size:12px;cursor:pointer;}
+    .user-menu .logout-btn:hover{border-color:var(--text);color:var(--text);}
+    .provider-row,.allowed-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
+    .provider-row:last-of-type,.allowed-row:last-of-type{border-bottom:none;}
+    .provider-name{flex:1;font-weight:500;}.provider-url{flex:2;color:var(--muted);font-size:12px;}
+    .provider-badge{font-size:11px;padding:2px 7px;border-radius:4px;background:rgba(34,197,94,.15);color:var(--green);}
+    .provider-badge.off{background:rgba(107,112,128,.15);color:var(--muted);}
+    .btn-danger{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:var(--red);border-radius:5px;padding:4px 10px;font-size:12px;cursor:pointer;}
+    .btn-danger:hover{background:rgba(239,68,68,.2);}
+    .add-form{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;display:none;}
+    .add-form.visible{display:block;}
+    .add-form .field{margin-bottom:12px;}.add-form .field:last-of-type{margin-bottom:0;}
+    .inline-row{display:flex;gap:8px;}
+    .inline-row input{flex:1;}
+    .tip-box{background:rgba(108,99,255,.08);border:1px solid rgba(108,99,255,.25);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6;}
+    .tip-box code{color:var(--text);}
+    .allowed-subject{flex:1;font-size:13px;color:var(--text);font-family:monospace;}
+    .allowed-meta{color:var(--muted);font-size:12px;min-width:140px;}
   </style>
 </head>
 <body>
@@ -122,6 +141,10 @@
     <div class="status-bar">
       <span id="poll-status">Loading...</span>
       <span class="status-dot" id="status-dot"></span>
+    </div>
+    <div class="user-menu">
+      <span id="user-label"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
     </div>
   </header>
   <main>
@@ -267,6 +290,78 @@
             <input type="text" id="s-apprise-events" placeholder="episode_grabbed,error">
           </div>
         </div>
+        <!-- Webhook Security -->
+        <div class="settings-group">
+          <div class="settings-group-title">Webhook Security</div>
+          <div class="field">
+            <label>Webhook Secret (optional)</label>
+            <div class="hint">When set, Episode Guard validates the <code style="color:var(--text)">X-Webhook-Token</code> header on incoming webhook requests. Leave blank to accept all requests.</div>
+            <input type="password" id="s-webhook-secret" placeholder="Leave blank to disable">
+            <div class="tip-box" style="margin-top:10px">
+              <strong style="color:var(--text)">Tautulli setup:</strong> In your Tautulli Webhook notification agent, under <strong>HTTP Headers</strong>, add:<br>
+              <code>X-Webhook-Token: &lt;your secret&gt;</code><br><br>
+              This ensures only your Tautulli instance can trigger Episode Guard.
+            </div>
+          </div>
+        </div>
+
+        <!-- Session -->
+        <div class="settings-group">
+          <div class="settings-group-title">Session</div>
+          <div class="field">
+            <label>Session Length (hours)</label>
+            <div class="hint">How long before you are signed out. Default 24 hours.</div>
+            <input type="number" id="s-session-hours" min="1" max="720">
+          </div>
+        </div>
+
+        <!-- OIDC Providers -->
+        <div class="settings-group">
+          <div class="settings-group-title">OIDC Providers</div>
+          <div id="providers-list"><div style="color:var(--muted);font-size:13px">Loading...</div></div>
+          <button class="btn-sm" style="margin-top:14px" onclick="toggleAddProvider()">+ Add Provider</button>
+          <div class="add-form" id="add-provider-form">
+            <div class="field"><label>Display Name</label><input type="text" id="p-name" placeholder="Authentik"></div>
+            <div class="field"><label>Issuer URL</label><input type="text" id="p-issuer" placeholder="https://auth.example.com/application/o/episodeguard/"></div>
+            <div class="field"><label>Client ID</label><input type="text" id="p-client-id"></div>
+            <div class="field"><label>Client Secret</label><input type="password" id="p-client-secret"></div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button class="btn-sm" onclick="addProvider()">Save Provider</button>
+              <button class="btn-ghost" onclick="toggleAddProvider()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Allowed OIDC Users -->
+        <div class="settings-group">
+          <div class="settings-group-title">Allowed OIDC Users</div>
+          <div class="hint" style="margin-bottom:14px">Only listed users can log in via OIDC. Add a user by pasting their subject ID (from their first blocked login attempt in the logs, or from your provider's admin panel).</div>
+          <div id="allowed-users-list"><div style="color:var(--muted);font-size:13px">Loading...</div></div>
+          <button class="btn-sm" style="margin-top:14px" onclick="toggleAddUser()">+ Add User</button>
+          <div class="add-form" id="add-user-form">
+            <div class="field"><label>Provider</label>
+              <select id="u-provider-id"></select>
+            </div>
+            <div class="field"><label>Subject ID</label><input type="text" id="u-subject" placeholder="From provider admin panel"></div>
+            <div class="field"><label>Email (optional)</label><input type="text" id="u-email"></div>
+            <div class="field"><label>Name (optional)</label><input type="text" id="u-name"></div>
+            <div style="display:flex;gap:8px;margin-top:4px">
+              <button class="btn-sm" onclick="addAllowedUser()">Add User</button>
+              <button class="btn-ghost" onclick="toggleAddUser()">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="settings-group" id="local-password-group" style="display:none">
+          <div class="settings-group-title">Change Local Password</div>
+          <div class="field"><label>Current Password</label><input type="password" id="pw-current"></div>
+          <div class="field"><label>New Password</label><input type="password" id="pw-new" placeholder="Min 8 characters"></div>
+          <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm"></div>
+          <button class="save-btn" onclick="changePassword()">Update Password</button>
+          <div class="toast" id="pw-toast"></div>
+        </div>
+
         <div>
           <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Settings</button>
           <div class="toast" id="toast"></div>
@@ -507,7 +602,11 @@
     document.getElementById('s-apprise-url').value  = s.apprise_url??'';
     document.getElementById('s-apprise-events').value = s.apprise_events??'episode_grabbed';
     document.getElementById('s-webhook').checked   = s.webhook_enabled==='1';
+    document.getElementById('s-webhook-secret').value = '';
+    document.getElementById('s-session-hours').value  = s.session_max_age_hours??'24';
     document.getElementById('webhook-url-display').textContent = location.origin+'/api/webhook';
+    loadProviders();
+    loadAllowedUsers();
   }
 
   async function saveSettings() {
@@ -521,7 +620,10 @@
       apprise_url:           document.getElementById('s-apprise-url').value,
       apprise_events:        document.getElementById('s-apprise-events').value,
       webhook_enabled:       document.getElementById('s-webhook').checked?'1':'0',
+      session_max_age_hours: document.getElementById('s-session-hours').value,
     };
+    const secret = document.getElementById('s-webhook-secret').value;
+    if (secret) payload.webhook_secret = secret;
     try {
       const res = await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const data = await res.json();
@@ -529,6 +631,105 @@
     } catch {showToast('Network error','error');}
     finally {btn.disabled=false;}
   }
+
+  // ── Auth UI ────────────────────────────────────────────────────────────────
+
+  async function loadProviders() {
+    const res = await fetch('/auth/admin/providers');
+    const rows = await res.json();
+    const el = document.getElementById('providers-list');
+    if (!rows.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px">No providers configured.</div>'; return; }
+    el.innerHTML = rows.map(p=>`
+      <div class="provider-row">
+        <span class="provider-name">${esc(p.name)}</span>
+        <span class="provider-url">${esc(p.issuer_url)}</span>
+        <span class="provider-badge ${p.enabled?'':'off'}">${p.enabled?'Enabled':'Disabled'}</span>
+        <button class="btn-ghost" style="font-size:12px;padding:4px 10px" onclick="toggleProvider(${p.id},${p.enabled})">${p.enabled?'Disable':'Enable'}</button>
+        <button class="btn-danger" onclick="deleteProvider(${p.id})">Remove</button>
+      </div>`).join('');
+    // also populate the user form provider select
+    const sel = document.getElementById('u-provider-id');
+    sel.innerHTML = rows.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  }
+
+  async function loadAllowedUsers() {
+    const res = await fetch('/auth/admin/allowed-users');
+    const rows = await res.json();
+    const el = document.getElementById('allowed-users-list');
+    if (!rows.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px">No allowed users. Add at least one to enable OIDC login.</div>'; return; }
+    el.innerHTML = rows.map(u=>`
+      <div class="allowed-row">
+        <span class="allowed-subject">${esc(u.subject)}</span>
+        <span class="allowed-meta">${esc(u.email??'')} ${esc(u.name??'')}</span>
+        <span style="color:var(--muted);font-size:12px">${esc(u.provider_name)}</span>
+        <button class="btn-danger" onclick="removeUser(${u.id})">Remove</button>
+      </div>`).join('');
+  }
+
+  function toggleAddProvider(){document.getElementById('add-provider-form').classList.toggle('visible');}
+  function toggleAddUser(){document.getElementById('add-user-form').classList.toggle('visible');}
+
+  async function addProvider() {
+    const body={name:document.getElementById('p-name').value,issuer_url:document.getElementById('p-issuer').value,client_id:document.getElementById('p-client-id').value,client_secret:document.getElementById('p-client-secret').value};
+    if(!body.name||!body.issuer_url||!body.client_id||!body.client_secret)return alert('All fields required.');
+    const res=await fetch('/auth/admin/providers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(res.ok){toggleAddProvider();loadProviders();}else{const j=await res.json();alert(j.error??'Failed');}
+  }
+
+  async function toggleProvider(id,currentlyEnabled){
+    await fetch('/auth/admin/providers/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!currentlyEnabled})});
+    loadProviders();
+  }
+
+  async function deleteProvider(id){
+    if(!confirm('Remove this OIDC provider? Allowed users for this provider will also be removed.'))return;
+    await fetch('/auth/admin/providers/'+id,{method:'DELETE'});
+    loadProviders();loadAllowedUsers();
+  }
+
+  async function addAllowedUser(){
+    const body={provider_id:parseInt(document.getElementById('u-provider-id').value,10),subject:document.getElementById('u-subject').value.trim(),email:document.getElementById('u-email').value.trim()||undefined,name:document.getElementById('u-name').value.trim()||undefined};
+    if(!body.subject)return alert('Subject ID required.');
+    const res=await fetch('/auth/admin/allowed-users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(res.ok){toggleAddUser();loadAllowedUsers();}else{const j=await res.json();alert(j.error??'Failed');}
+  }
+
+  async function removeUser(id){
+    if(!confirm('Remove this user from the allowed list?'))return;
+    await fetch('/auth/admin/allowed-users/'+id,{method:'DELETE'});
+    loadAllowedUsers();
+  }
+
+  async function changePassword(){
+    const cur=document.getElementById('pw-current').value,nw=document.getElementById('pw-new').value,conf=document.getElementById('pw-confirm').value;
+    if(nw!==conf)return showToast2('pw-toast','Passwords do not match.','error');
+    const res=await fetch('/auth/local/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({currentPassword:cur,newPassword:nw})});
+    const j=await res.json();
+    showToast2('pw-toast',res.ok?'Password updated.':j.error??'Failed.',res.ok?'success':'error');
+    if(res.ok){document.getElementById('pw-current').value='';document.getElementById('pw-new').value='';document.getElementById('pw-confirm').value='';}
+  }
+
+  function showToast2(id,msg,type){
+    const el=document.getElementById(id);
+    el.textContent=msg;el.className='toast '+type;el.style.display='block';
+    setTimeout(()=>{el.style.display='none';},4000);
+  }
+
+  async function doLogout(){
+    await fetch('/auth/logout',{method:'POST'});
+    location.href='/login';
+  }
+
+  // Show user label + local password change if local user
+  (async()=>{
+    try{
+      const res=await fetch('/auth/me');
+      if(!res.ok)return;
+      const u=await res.json();
+      document.getElementById('user-label').textContent=u.name||u.email||u.username||'';
+      if(u.type==='local')document.getElementById('local-password-group').style.display='';
+    }catch{}
+  })();
 
   function showToast(msg,type){
     const el=document.getElementById('toast');
