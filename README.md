@@ -79,19 +79,25 @@ These live in the dashboard Settings tab, stored in SQLite rather than env vars:
 
 ## Tautulli webhook setup
 
-Settings → Notification Agents → add a Webhook. Set the URL to `http://your-episodeguard-host:8988/api/webhook` and trigger on **Playback Start**.
-
-JSON body:
+1. Tautulli → Settings → Notification Agents → add a **Webhook**
+2. Set the Webhook URL to `http://your-episodeguard-host:8988/api/webhook`
+3. No authentication needed — the endpoint is intentionally unauthenticated
+4. Under **Triggers**, enable **Playback Start**
+5. Under **Data**, paste this JSON body:
 
 ```json
 {
   "media_type": "{media_type}",
-  "grandparent_title": "{grandparent_title}",
-  "parent_media_index": "{parent_media_index}",
-  "media_index": "{media_index}",
-  "grandparent_guids": {grandparent_guids}
+  "grandparent_title": "{show_name}",
+  "parent_media_index": "{season_num}",
+  "media_index": "{episode_num}",
+  "grandparent_guids": ["tvdb://{thetvdb_id}"]
 }
 ```
+
+Season and episode numbers must be quoted strings — Tautulli's JSON validator rejects bare integers in templates. The handler parses them with `parseInt` so this is fine.
+
+When a webhook is received the dashboard status bar shows **Webhook: X ago**. If it shows **never received** after playing something, Tautulli isn't reaching the endpoint — check the URL and that Episode Guard is accessible from the Tautulli host.
 
 ---
 
