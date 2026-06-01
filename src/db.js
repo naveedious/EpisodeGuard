@@ -128,14 +128,15 @@ export function getRecentActivity(limit = 100) {
   ).all(limit);
 }
 
-export function getActivityFiltered({ show, type, from, to } = {}, limit = 50, offset = 0) {
+export function getActivityFiltered({ show, type, from, to, before } = {}, limit = 50, offset = 0) {
   const conditions = [];
   const params = [];
 
-  if (show) { conditions.push('show_title LIKE ?'); params.push('%' + show + '%'); }
-  if (type) { conditions.push('event_type = ?');   params.push(type); }
-  if (from) { conditions.push('timestamp >= ?');   params.push(from); }
-  if (to)   { conditions.push('timestamp <= ?');   params.push(to); }
+  if (show)   { conditions.push('show_title LIKE ?'); params.push('%' + show + '%'); }
+  if (type)   { conditions.push('event_type = ?');    params.push(type); }
+  if (from)   { conditions.push('timestamp >= ?');    params.push(from); }
+  if (to)     { conditions.push('timestamp <= ?');    params.push(to); }
+  if (before) { conditions.push('timestamp < ?');     params.push(before); }
 
   const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
 

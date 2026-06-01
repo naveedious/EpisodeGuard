@@ -580,6 +580,7 @@
     if (d.message && !d.reason) detail += (detail?' - ':'')+String(d.message).slice(0,60);
     const el = document.createElement('div');
     el.className = 'live-row'+(animate?' new':'');
+    el.dataset.ts = String(new Date(row.timestamp).getTime());
     el.innerHTML = '<span class="live-time">'+relativeTime(row.timestamp)+'</span>'+
       '<span class="live-type">'+badgeHtml(row.event_type)+'</span>'+
       '<span class="live-show">'+esc(row.show_title??'-')+'<span class="live-ep">'+epLabel(row.season,row.episode)+'</span></span>'+
@@ -601,6 +602,9 @@
 
   let histPage=1;
   const HIST_LIMIT=50;
+  const LIVE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+  function liveCutoff() { return new Date(Date.now() - LIVE_WINDOW_MS).toISOString(); }
 
   function applyFilters(){histPage=1;loadHistLog();}
   function clearFilters(){
@@ -618,6 +622,9 @@
     if (type) params.set('type',type);
     if (from) params.set('from',from+'T00:00:00Z');
     if (to)   params.set('to',to+'T23:59:59Z');
+    // Default: exclude last 10 mins (those are in the live feed)
+    // Only apply if user hasn't set an explicit date range
+    if (!from && !to) params.set('before', liveCutoff());
     try {
       const res = await fetch('/api/logs?'+params);
       const data = await res.json();
@@ -639,7 +646,26 @@
   }
 
   function goPage(p){histPage=p;loadHistLog();}
-  function initLogsView(){initLiveFeed();loadHistLog();}
+
+  // Prune live feed rows older than 10 mins and refresh history to pick them up
+  function pruneLiveFeed() {
+    const cutoff = Date.now() - LIVE_WINDOW_MS;
+    const feed = document.getElementById('live-feed');
+    if (!feed) return;
+    let pruned = 0;
+    feed.querySelectorAll('.live-row').forEach(el => {
+      const ts = el.dataset.ts ? parseInt(el.dataset.ts, 10) : 0;
+      if (ts && ts < cutoff) { el.remove(); pruned++; }
+    });
+    if (pruned > 0) loadHistLog();
+  }
+
+  let logsViewTimer = null;
+  function initLogsView() {
+    initLiveFeed();
+    loadHistLog();
+    if (!logsViewTimer) logsViewTimer = setInterval(pruneLiveFeed, 60000);
+  }
 
   function showSettingsTab(name, btn) {
     document.querySelectorAll('.settings-pane').forEach(p => p.classList.remove('active'));

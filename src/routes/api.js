@@ -53,12 +53,12 @@ router.get('/dashboard', async (req, res) => {
 });
 
 router.get('/logs', (req, res) => {
-  const { show, type, from, to } = req.query;
+  const { show, type, from, to, before } = req.query;
   const limit  = Math.min(parseInt(req.query.limit ?? '50', 10), 200);
   const page   = Math.max(parseInt(req.query.page  ?? '1',  10), 1);
   const offset = (page - 1) * limit;
   try {
-    const result = getActivityFiltered({ show, type, from, to }, limit, offset);
+    const result = getActivityFiltered({ show, type, from, to, before }, limit, offset);
     res.json({ rows: result.rows, total: result.total, page, limit, totalPages: Math.ceil(result.total / limit) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -69,7 +69,9 @@ router.get('/logs/stream', (req, res) => {
   res.setHeader('Connection',    'keep-alive');
   res.flushHeaders();
 
-  const recent = getRecentActivity(20).reverse();
+  // Seed with events from the last 10 minutes only
+  const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const recent = getActivityFiltered({ from: tenMinsAgo }, 200, 0).rows.reverse();
   for (const row of recent) res.write('data: ' + JSON.stringify(row) + '\n\n');
 
   addSseClient(res);
