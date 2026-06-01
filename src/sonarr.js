@@ -48,6 +48,32 @@ export async function findSeriesByTvdbId(tvdbId) {
   return Array.isArray(results) ? (results[0] ?? null) : (results ?? null);
 }
 
+export async function findSeriesByTitle(title) {
+  const all = await sonarrReq('GET', '/series');
+  if (!Array.isArray(all)) return null;
+  const normalise = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const needle = normalise(title);
+  const matches = all.filter(s => normalise(s.title) === needle);
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) {
+    console.warn('[sonarr] Title "' + title + '" matched ' + matches.length + ' series: ' +
+      matches.map(s => '"' + s.title + '" (id=' + s.id + ')').join(', ') +
+      ' - skipping. Add TVDB metadata to disambiguate.');
+    return null;
+  }
+  return null;
+}
+
+/** Find by TVDB ID first, fall back to title match. */
+export async function findSeries(tvdbId, title) {
+  if (tvdbId) {
+    const byId = await findSeriesByTvdbId(tvdbId);
+    if (byId) return byId;
+  }
+  if (title) return findSeriesByTitle(title);
+  return null;
+}
+
 async function getSeasonEpisodes(seriesId, season) {
   return sonarrReq('GET', '/episode?seriesId=' + seriesId + '&seasonNumber=' + season);
 }

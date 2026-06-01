@@ -55,6 +55,11 @@
     .settings-sections{display:flex;flex-direction:column;gap:24px;max-width:620px;}
     .settings-group{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;}
     .settings-group-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:20px;}
+    .settings-tabs{display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border);padding-bottom:0;}
+    .settings-tab{background:none;border:none;color:var(--muted);font-size:13px;padding:8px 16px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s,border-color .15s;}
+    .settings-tab:hover{color:var(--text);}
+    .settings-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+    .settings-pane{display:none;}.settings-pane.active{display:flex;flex-direction:column;gap:24px;}
     .field{margin-bottom:18px;}.field:last-of-type{margin-bottom:0;}
     .field label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;}
     .field .hint{font-size:12px;color:var(--muted);margin-bottom:6px;}
@@ -228,145 +233,185 @@
     <!-- SETTINGS -->
     <div id="view-settings" class="view">
       <div class="settings-sections">
-        <div class="settings-group">
-          <div class="settings-group-title">Polling &amp; Lookahead</div>
-          <div class="field">
-            <label>Poll Interval (seconds)</label>
-            <div class="hint">How often to check Tautulli. Default 300s; 600s when webhook is active.</div>
-            <input type="number" id="s-poll" min="10" step="10">
+        <div class="settings-tabs">
+          <button class="settings-tab active" onclick="showSettingsTab('general',this)">General</button>
+          <button class="settings-tab" onclick="showSettingsTab('webhooks',this)">Webhooks</button>
+          <button class="settings-tab" onclick="showSettingsTab('notifications',this)">Notifications</button>
+          <button class="settings-tab" onclick="showSettingsTab('security',this)">Security</button>
+          <button class="settings-tab" onclick="showSettingsTab('account',this)">Account</button>
+        </div>
+
+        <!-- General -->
+        <div class="settings-pane active" id="stab-general">
+          <div class="settings-group">
+            <div class="settings-group-title">Polling &amp; Lookahead</div>
+            <div class="field">
+              <label>Poll Interval (seconds)</label>
+              <div class="hint">How often to check active sessions. Default 300s; 600s when webhook is active.</div>
+              <input type="number" id="s-poll" min="10" step="10">
+            </div>
+            <div class="field">
+              <label>Lookahead Episodes</label>
+              <div class="hint">Number of upcoming episodes to ensure are ready.</div>
+              <input type="number" id="s-lookahead" min="1" max="50">
+            </div>
+            <div class="field">
+              <label>Season End Buffer</label>
+              <div class="hint">Episodes from finale to trigger next-season pre-monitor.</div>
+              <input type="number" id="s-buffer" min="1" max="20">
+            </div>
           </div>
-          <div class="field">
-            <label>Lookahead Episodes</label>
-            <div class="hint">Number of upcoming episodes to ensure are ready.</div>
-            <input type="number" id="s-lookahead" min="1" max="50">
+          <div class="settings-group">
+            <div class="settings-group-title">Log Retention</div>
+            <div class="field">
+              <label>Retention Period (days)</label>
+              <div class="hint">Log entries older than this are purged automatically on each poll cycle.</div>
+              <input type="number" id="s-retention" min="1" max="3650">
+            </div>
           </div>
-          <div class="field">
-            <label>Season End Buffer</label>
-            <div class="hint">Episodes from finale to trigger next-season pre-monitor.</div>
-            <input type="number" id="s-buffer" min="1" max="20">
+          <div>
+            <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Settings</button>
+            <div class="toast" id="toast"></div>
           </div>
         </div>
-        <div class="settings-group">
-          <div class="settings-group-title">Webhook Trigger</div>
-          <div class="field">
-            <div class="toggle-row">
-              <span class="toggle-label">Enable Webhook Mode</span>
-              <label class="toggle"><input type="checkbox" id="s-webhook"><span class="toggle-slider"></span></label>
+
+        <!-- Webhooks -->
+        <div class="settings-pane" id="stab-webhooks">
+          <div class="settings-group">
+            <div class="settings-group-title">Webhook Mode</div>
+            <div class="field">
+              <div class="toggle-row">
+                <span class="toggle-label">Enable Webhook Mode</span>
+                <label class="toggle"><input type="checkbox" id="s-webhook"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="hint" style="margin-top:8px">When enabled, polling is a narrower fallback (active sessions only). The webhook is the primary trigger.</div>
             </div>
-            <div class="hint" style="margin-top:8px">When enabled, polling is a narrower fallback (active sessions only). The webhook is the primary trigger.</div>
+            <div class="field">
+              <label>Webhook Endpoint</label>
+              <div class="code-block" id="webhook-url-display">-</div>
+            </div>
           </div>
-          <div class="field">
-            <label>Webhook Endpoint</label>
-            <div class="hint">In Tautulli: Notification Agents &rarr; Add Webhook &rarr; Playback Start. Set Method to <strong>POST</strong>, paste the URL below, then paste the JSON body into the <strong>JSON Data</strong> field.</div>
-            <div class="code-block" id="webhook-url-display">-</div>
-            <div class="hint" style="margin-top:12px">Tautulli JSON Data body (copy &amp; paste):</div>
-            <div class="code-block" style="white-space:pre;line-height:1.6">{
+          <div class="settings-group">
+            <div class="settings-group-title">Tautulli Setup</div>
+            <div class="field">
+              <div class="hint">In Tautulli: Notification Agents &rarr; Add Webhook &rarr; Playback Start. Set Method to <strong>POST</strong>, paste the endpoint above, then paste the JSON body below into the <strong>JSON Data</strong> field.</div>
+              <div class="hint" style="margin-top:12px">JSON Data body:</div>
+              <div class="code-block" style="white-space:pre;line-height:1.6">{
   "media_type": "{media_type}",
   "grandparent_title": "{show_name}",
   "parent_media_index": {season_num},
   "media_index": {episode_num},
   "grandparent_guids": ["tvdb://{thetvdb_id}"]
 }</div>
-            <div class="hint" style="margin-top:6px">Tautulli will substitute <code style="color:var(--text)">{show_name}</code>, <code style="color:var(--text)">{season_num}</code>, <code style="color:var(--text)">{episode_num}</code>, and <code style="color:var(--text)">{thetvdb_id}</code> at notification time. Only fires for <code style="color:var(--text)">media_type = episode</code>.</div>
-          </div>
-        </div>
-        <div class="settings-group">
-          <div class="settings-group-title">Log Retention</div>
-          <div class="field">
-            <label>Retention Period (days)</label>
-            <div class="hint">Log entries older than this are purged automatically on each poll cycle.</div>
-            <input type="number" id="s-retention" min="1" max="3650">
-          </div>
-        </div>
-        <div class="settings-group">
-          <div class="settings-group-title">Notifications (Apprise)</div>
-          <div class="field">
-            <label>Apprise URL</label>
-            <div class="hint">Any Apprise-compatible URL e.g. <code style="color:var(--text)">ntfy://topic</code>, <code style="color:var(--text)">slack://...</code>. Leave blank to disable.</div>
-            <input type="text" id="s-apprise-url" placeholder="ntfy://my-episode-guard-topic">
-          </div>
-          <div class="field">
-            <label>Notify on Events</label>
-            <div class="hint">Comma-separated. Options: episode_grabbed, episode_monitored, season_monitored, error</div>
-            <input type="text" id="s-apprise-events" placeholder="episode_grabbed,error">
-          </div>
-        </div>
-        <!-- Webhook Security -->
-        <div class="settings-group">
-          <div class="settings-group-title">Webhook Security</div>
-          <div class="field">
-            <label>Webhook Secret (optional)</label>
-            <div class="hint">When set, Episode Guard validates the <code style="color:var(--text)">X-Webhook-Token</code> header on incoming webhook requests. Leave blank to accept all requests.</div>
-            <input type="password" id="s-webhook-secret" placeholder="Leave blank to disable">
-            <div class="tip-box" style="margin-top:10px">
-              <strong style="color:var(--text)">Tautulli setup:</strong> In your Tautulli Webhook notification agent, under <strong>HTTP Headers</strong>, add:<br>
-              <code>X-Webhook-Token: &lt;your secret&gt;</code><br><br>
-              This ensures only your Tautulli instance can trigger Episode Guard.
+              <div class="hint" style="margin-top:6px">Tautulli substitutes <code style="color:var(--text)">{show_name}</code>, <code style="color:var(--text)">{season_num}</code>, <code style="color:var(--text)">{episode_num}</code>, and <code style="color:var(--text)">{thetvdb_id}</code> at notification time. Only fires for <code style="color:var(--text)">media_type = episode</code>.</div>
             </div>
           </div>
-        </div>
-
-        <!-- Session -->
-        <div class="settings-group">
-          <div class="settings-group-title">Session</div>
-          <div class="field">
-            <label>Session Length (hours)</label>
-            <div class="hint">How long before you are signed out. Default 24 hours.</div>
-            <input type="number" id="s-session-hours" min="1" max="720">
+          <div class="settings-group">
+            <div class="settings-group-title">Jellyfin Setup</div>
+            <div class="field">
+              <div class="hint">Install the <strong>Webhook</strong> plugin in Jellyfin (Dashboard &rarr; Plugins &rarr; Catalog). Then add a webhook with the endpoint above and select the <strong>Playback Start</strong> event.</div>
+              <div class="hint" style="margin-top:12px">Set the template type to <strong>Default</strong> — Episode Guard detects Jellyfin payloads automatically. No JSON customisation needed.</div>
+              <div class="hint" style="margin-top:6px">For reliable matching, ensure your Jellyfin series have TVDB metadata populated (Dashboard &rarr; Libraries &rarr; refresh metadata). If TVDB is missing, Episode Guard falls back to title matching.</div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-title">Webhook Security</div>
+            <div class="field">
+              <label>Webhook Secret (optional)</label>
+              <div class="hint">When set, Episode Guard validates the <code style="color:var(--text)">X-Webhook-Token</code> header. Leave blank to accept all requests.</div>
+              <input type="password" id="s-webhook-secret" placeholder="Leave blank to disable">
+              <div class="tip-box" style="margin-top:10px">
+                <strong style="color:var(--text)">Tautulli:</strong> Under HTTP Headers in your webhook agent, add <code>X-Webhook-Token: &lt;your secret&gt;</code><br><br>
+                <strong style="color:var(--text)">Jellyfin:</strong> In the webhook plugin, set the same header under <strong>Headers</strong>.
+              </div>
+            </div>
+          </div>
+          <div>
+            <button class="save-btn" id="save-btn-webhooks" onclick="saveSettings()">Save Settings</button>
+            <div class="toast" id="toast-webhooks"></div>
           </div>
         </div>
 
-        <!-- OIDC Providers -->
-        <div class="settings-group">
-          <div class="settings-group-title">OIDC Providers</div>
-          <div id="providers-list"><div style="color:var(--muted);font-size:13px">Loading...</div></div>
-          <button class="btn-sm" style="margin-top:14px" onclick="toggleAddProvider()">+ Add Provider</button>
-          <div class="add-form" id="add-provider-form">
-            <div class="field"><label>Display Name</label><input type="text" id="p-name" placeholder="Authentik"></div>
-            <div class="field"><label>Issuer URL</label><input type="text" id="p-issuer" placeholder="https://auth.example.com/application/o/episodeguard/"></div>
-            <div class="field"><label>Client ID</label><input type="text" id="p-client-id"></div>
-            <div class="field"><label>Client Secret</label><input type="password" id="p-client-secret"></div>
-            <div style="display:flex;gap:8px;margin-top:4px">
-              <button class="btn-sm" onclick="addProvider()">Save Provider</button>
-              <button class="btn-ghost" onclick="toggleAddProvider()">Cancel</button>
+        <!-- Notifications -->
+        <div class="settings-pane" id="stab-notifications">
+          <div class="settings-group">
+            <div class="settings-group-title">Notifications (Apprise)</div>
+            <div class="field">
+              <label>Apprise URL</label>
+              <div class="hint">Any Apprise-compatible URL e.g. <code style="color:var(--text)">ntfy://topic</code>, <code style="color:var(--text)">slack://...</code>. Leave blank to disable.</div>
+              <input type="text" id="s-apprise-url" placeholder="ntfy://my-episode-guard-topic">
             </div>
+            <div class="field">
+              <label>Notify on Events</label>
+              <div class="hint">Comma-separated. Options: episode_grabbed, episode_monitored, season_monitored, error</div>
+              <input type="text" id="s-apprise-events" placeholder="episode_grabbed,error">
+            </div>
+          </div>
+          <div>
+            <button class="save-btn" id="save-btn-notifications" onclick="saveSettings()">Save Settings</button>
+            <div class="toast" id="toast-notifications"></div>
           </div>
         </div>
 
-        <!-- Allowed OIDC Users -->
-        <div class="settings-group">
-          <div class="settings-group-title">Allowed OIDC Users</div>
-          <div class="hint" style="margin-bottom:14px">Only listed users can log in via OIDC. Add a user by pasting their subject ID (from their first blocked login attempt in the logs, or from your provider's admin panel).</div>
-          <div id="allowed-users-list"><div style="color:var(--muted);font-size:13px">Loading...</div></div>
-          <button class="btn-sm" style="margin-top:14px" onclick="toggleAddUser()">+ Add User</button>
-          <div class="add-form" id="add-user-form">
-            <div class="field"><label>Provider</label>
-              <select id="u-provider-id"></select>
+        <!-- Security -->
+        <div class="settings-pane" id="stab-security">
+          <div class="settings-group">
+            <div class="settings-group-title">Session</div>
+            <div class="field">
+              <label>Session Length (hours)</label>
+              <div class="hint">How long before you are signed out. Default 24 hours.</div>
+              <input type="number" id="s-session-hours" min="1" max="720">
             </div>
-            <div class="field"><label>Subject ID</label><input type="text" id="u-subject" placeholder="From provider admin panel"></div>
-            <div class="field"><label>Email (optional)</label><input type="text" id="u-email"></div>
-            <div class="field"><label>Name (optional)</label><input type="text" id="u-name"></div>
-            <div style="display:flex;gap:8px;margin-top:4px">
-              <button class="btn-sm" onclick="addAllowedUser()">Add User</button>
-              <button class="btn-ghost" onclick="toggleAddUser()">Cancel</button>
-            </div>
+          </div>
+          <div>
+            <button class="save-btn" id="save-btn-security" onclick="saveSettings()">Save Settings</button>
+            <div class="toast" id="toast-security"></div>
           </div>
         </div>
 
-        <!-- Change Password -->
-        <div class="settings-group" id="local-password-group" style="display:none">
-          <div class="settings-group-title">Change Local Password</div>
-          <div class="field"><label>Current Password</label><input type="password" id="pw-current"></div>
-          <div class="field"><label>New Password</label><input type="password" id="pw-new" placeholder="Min 8 characters"></div>
-          <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm"></div>
-          <button class="save-btn" onclick="changePassword()">Update Password</button>
-          <div class="toast" id="pw-toast"></div>
+        <!-- Account -->
+        <div class="settings-pane" id="stab-account">
+          <div class="settings-group">
+            <div class="settings-group-title">OIDC Providers</div>
+            <div id="providers-list"><div style="color:var(--muted);font-size:13px">Loading...</div></div>
+            <button class="btn-sm" style="margin-top:14px" onclick="toggleAddProvider()">+ Add Provider</button>
+            <div class="add-form" id="add-provider-form">
+              <div class="field"><label>Display Name</label><input type="text" id="p-name" placeholder="Authentik"></div>
+              <div class="field"><label>Issuer URL</label><input type="text" id="p-issuer" placeholder="https://auth.example.com/application/o/episodeguard/"></div>
+              <div class="field"><label>Client ID</label><input type="text" id="p-client-id"></div>
+              <div class="field"><label>Client Secret</label><input type="password" id="p-client-secret"></div>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button class="btn-sm" onclick="addProvider()">Save Provider</button>
+                <button class="btn-ghost" onclick="toggleAddProvider()">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-title">Allowed OIDC Users</div>
+            <div class="hint" style="margin-bottom:14px">Only listed users can log in via OIDC. Add a user by pasting their subject ID (from their first blocked login attempt in the logs, or from your provider's admin panel).</div>
+            <div id="allowed-users-list"><div style="color:var(--muted);font-size:13px">Loading...</div></div>
+            <button class="btn-sm" style="margin-top:14px" onclick="toggleAddUser()">+ Add User</button>
+            <div class="add-form" id="add-user-form">
+              <div class="field"><label>Provider</label><select id="u-provider-id"></select></div>
+              <div class="field"><label>Subject ID</label><input type="text" id="u-subject" placeholder="From provider admin panel"></div>
+              <div class="field"><label>Email (optional)</label><input type="text" id="u-email"></div>
+              <div class="field"><label>Name (optional)</label><input type="text" id="u-name"></div>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button class="btn-sm" onclick="addAllowedUser()">Add User</button>
+                <button class="btn-ghost" onclick="toggleAddUser()">Cancel</button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group" id="local-password-group" style="display:none">
+            <div class="settings-group-title">Change Local Password</div>
+            <div class="field"><label>Current Password</label><input type="password" id="pw-current"></div>
+            <div class="field"><label>New Password</label><input type="password" id="pw-new" placeholder="Min 8 characters"></div>
+            <div class="field"><label>Confirm New Password</label><input type="password" id="pw-confirm"></div>
+            <button class="save-btn" onclick="changePassword()">Update Password</button>
+            <div class="toast" id="pw-toast"></div>
+          </div>
         </div>
 
-        <div>
-          <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Settings</button>
-          <div class="toast" id="toast"></div>
-        </div>
       </div>
     </div>
 
@@ -593,6 +638,13 @@
   function goPage(p){histPage=p;loadHistLog();}
   function initLogsView(){initLiveFeed();loadHistLog();}
 
+  function showSettingsTab(name, btn) {
+    document.querySelectorAll('.settings-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.settings-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('stab-' + name).classList.add('active');
+    btn.classList.add('active');
+  }
+
   async function loadSettings() {
     const res = await fetch('/api/settings');
     const s = await res.json();
@@ -611,7 +663,8 @@
   }
 
   async function saveSettings() {
-    const btn = document.getElementById('save-btn');
+    const activePane = document.querySelector('.settings-pane.active');
+    const btn = (activePane && activePane.querySelector('.save-btn')) || document.getElementById('save-btn');
     btn.disabled = true;
     const payload = {
       poll_interval_seconds: document.getElementById('s-poll').value,
@@ -625,11 +678,17 @@
     };
     const secret = document.getElementById('s-webhook-secret').value;
     if (secret) payload.webhook_secret = secret;
+    const activePane = document.querySelector('.settings-pane.active');
+    const toastEl = activePane ? activePane.querySelector('.toast') : document.getElementById('toast');
+    const showTabToast = (msg, type) => {
+      if (toastEl) { toastEl.textContent=msg; toastEl.className='toast '+type; toastEl.style.display='block'; setTimeout(()=>{toastEl.style.display='none';},4000); }
+      else showToast(msg, type);
+    };
     try {
       const res = await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const data = await res.json();
-      showToast(res.ok?'Settings saved.':(data.error??'Save failed'), res.ok?'success':'error');
-    } catch {showToast('Network error','error');}
+      showTabToast(res.ok?'Settings saved.':(data.error??'Save failed'), res.ok?'success':'error');
+    } catch {showTabToast('Network error','error');}
     finally {btn.disabled=false;}
   }
 

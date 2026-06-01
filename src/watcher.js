@@ -1,12 +1,14 @@
 import { getPlayingEpisodes, getRecentlyWatchedEpisodes } from './tautulli.js';
+import { getJellyfinSessions } from './jellyfin.js';
 import {
-  findSeriesByTvdbId,
+  findSeries,
   getTwoSeasonEpisodes,
   ensureUpcomingEpisodes,
   checkSeasonEndAndPreload,
   getSonarrQueue,
 } from './sonarr.js';
 import { getSetting, logEvent, purgeOldLogs } from './db.js';
+import { sources } from './config.js';
 
 export const state = {
   lastPollAt:     null,
@@ -54,7 +56,7 @@ export async function handleWebhookTrigger(ep) {
   logEvent({ event_type: 'webhook_received', show_title: showTitle, season, episode,
     details: { message: 'Received via webhook', trigger: 'webhook', tvdbId } });
   try {
-    const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
+    const series = await findSeries(tvdbId, showTitle);
     if (!series) {
       console.warn('[watcher] ' + label + ' not found in Sonarr (webhook) - skipping');
       logEvent({ event_type: 'error', show_title: showTitle, season, episode,
@@ -89,25 +91,47 @@ async function runWatcher() {
   let episodes;
   let queuedEpisodeIds;
   try {
-    if (webhookEnabled) {
-      [episodes, queuedEpisodeIds] = await Promise.all([
-        getPlayingEpisodes(),
-        getSonarrQueue(),
-      ]);
-    } else {
-      const [playing, recent, queue] = await Promise.all([
-        getPlayingEpisodes(),
-        getRecentlyWatchedEpisodes(parseInt(getSetting('poll_interval_seconds'), 10) * 2),
-        getSonarrQueue(),
-      ]);
-      const seen = new Set(playing.map(e => e.showTitle + '-S' + e.season + 'E' + e.episode));
-      const uniqueRecent = recent.filter(e => !seen.has(e.showTitle + '-S' + e.season + 'E' + e.episode));
-      episodes = [...playing, ...uniqueRecent];
-      queuedEpisodeIds = queue;
+    const fetchers = [];
+    if (sources.tautulli) {
+      if (webhookEnabled) {
+        fetchers.push(getPlayingEpisodes().catch(err => { console.error('[watcher] Tautulli error:', err.message); return []; }));
+      } else {
+        const windowSecs = parseInt(getSetting('poll_interval_seconds'), 10) * 2;
+        fetchers.push(
+          Promise.all([getPlayingEpisodes(), getRecentlyWatchedEpisodes(windowSecs)])
+            .then(([playing, recent]) => {
+              const seen = new Set(playing.map(e => e.showTitle + '-S' + e.season + 'E' + e.episode));
+              return [...playing, ...recent.filter(e => !seen.has(e.showTitle + '-S' + e.season + 'E' + e.episode))];
+            })
+            .catch(err => { console.error('[watcher] Tautulli error:', err.message); return []; })
+        );
+      }
     }
+    if (sources.jellyfin) {
+      fetchers.push(getJellyfinSessions().catch(err => { console.error('[watcher] Jellyfin error:', err.message); return []; }));
+    }
+
+    const [sourcedEps, queue] = await Promise.all([
+      Promise.all(fetchers).then(results => results.flat()),
+      getSonarrQueue(),
+    ]);
+
+    // Dedup across sources: first occurrence wins
+    const seen = new Set();
+    episodes = [];
+    for (const ep of sourcedEps) {
+      const key = ep.showTitle + '-S' + pad(ep.season) + 'E' + pad(ep.episode);
+      if (seen.has(key)) {
+        console.log('[watcher] Cross-source duplicate dropped: ' + key);
+        continue;
+      }
+      seen.add(key);
+      episodes.push(ep);
+    }
+    queuedEpisodeIds = queue;
   } catch (err) {
     state.lastError = err.message;
-    console.error('[watcher] Tautulli error:', err.message);
+    console.error('[watcher] Source fetch error:', err.message);
     return;
   }
 
@@ -134,7 +158,7 @@ async function runWatcher() {
         if (Date.now() - ts >= WEBHOOK_DEDUP_TTL_MS) webhookDeduped.delete(k);
       }
 
-      const series = tvdbId ? await findSeriesByTvdbId(tvdbId) : null;
+      const series = await findSeries(tvdbId, showTitle);
       if (!series) {
         console.warn('[watcher] ' + label + ' not found in Sonarr - skipping');
         continue;

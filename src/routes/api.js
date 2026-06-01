@@ -68,23 +68,41 @@ router.get('/logs/stream', (req, res) => {
 
 router.post('/webhook', async (req, res) => {
   const body = req.body;
-  const mediaType = body.media_type ?? body.mediaType;
-  if (mediaType !== 'episode') return res.json({ ok: true, skipped: 'not an episode' });
 
-  const showTitle = body.grandparent_title ?? body.show_name ?? '';
-  const season    = parseInt(body.parent_media_index ?? body.season_num  ?? '0', 10);
-  const episode   = parseInt(body.media_index        ?? body.episode_num ?? '0', 10);
-  const tvdbId    = parseTvdbId(body.grandparent_guids ?? []);
+  // Detect source from payload shape:
+  // Tautulli sends grandparent_guids; Jellyfin sends SeriesName + ParentIndexNumber
+  const isJellyfin = body.SeriesName !== undefined || body.NotificationType !== undefined;
 
-  if (!showTitle || !season || !episode) {
-    return res.status(400).json({ error: 'Missing required fields: grandparent_title, parent_media_index, media_index' });
+  let showTitle, season, episode, tvdbId, source;
+
+  if (isJellyfin) {
+    // Jellyfin webhook plugin payload
+    if (body.ItemType !== 'Episode') return res.json({ ok: true, skipped: 'not an episode' });
+    showTitle = body.SeriesName ?? '';
+    season    = parseInt(body.SeasonNumber ?? body.ParentIndexNumber ?? '0', 10);
+    episode   = parseInt(body.EpisodeNumber ?? body.IndexNumber ?? '0', 10);
+    tvdbId    = body.Provider_tvdb ? parseInt(body.Provider_tvdb, 10) : null;
+    source    = 'jellyfin';
+  } else {
+    // Tautulli payload
+    const mediaType = body.media_type ?? body.mediaType;
+    if (mediaType !== 'episode') return res.json({ ok: true, skipped: 'not an episode' });
+    showTitle = body.grandparent_title ?? body.show_name ?? '';
+    season    = parseInt(body.parent_media_index ?? body.season_num  ?? '0', 10);
+    episode   = parseInt(body.media_index        ?? body.episode_num ?? '0', 10);
+    tvdbId    = parseTvdbId(body.grandparent_guids ?? []);
+    source    = 'tautulli';
   }
 
-  const ep = { sessionKey: 'webhook-' + Date.now(), showTitle, season, episode, tvdbId };
+  if (!showTitle || !season || !episode) {
+    return res.status(400).json({ error: 'Missing required fields: show title, season, episode' });
+  }
 
-  console.log('[webhook] Received: show=' + showTitle + ' S' + String(season).padStart(2,'0') + 'E' + String(episode).padStart(2,'0') + ' tvdbId=' + tvdbId + ' guids=' + JSON.stringify(body.grandparent_guids));
+  const ep = { sessionKey: 'webhook-' + Date.now(), showTitle, season, episode, tvdbId, source };
 
-  res.json({ ok: true, received: { showTitle, season, episode, tvdbId } });
+  console.log('[webhook] Received (' + source + '): show=' + showTitle + ' S' + String(season).padStart(2,'0') + 'E' + String(episode).padStart(2,'0') + ' tvdbId=' + tvdbId);
+
+  res.json({ ok: true, received: { showTitle, season, episode, tvdbId, source } });
   handleWebhookTrigger(ep).catch(err => console.error('[webhook] Processing error:', err.message));
 });
 

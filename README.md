@@ -33,15 +33,19 @@ Each upcoming episode gets its own row so you can see exactly what was checked a
 
 ## Quick start
 
-Set your environment variables in the `environment` section of your `docker-compose.yml`:
+Set your environment variables in the `environment` section of your `docker-compose.yml`. At least one media source (Tautulli or Jellyfin) must be configured — both can run simultaneously:
 
 ```yaml
 services:
   episodeguard:
     image: episodeguard
     environment:
+      # Tautulli (Plex) — optional if Jellyfin is configured
       TAUTULLI_URL: http://tautulli:8181
       TAUTULLI_API_KEY: your_tautulli_api_key
+      # Jellyfin — optional if Tautulli is configured
+      JELLYFIN_URL: http://jellyfin:8096
+      JELLYFIN_API_KEY: your_jellyfin_api_key
       SONARR_URL: http://sonarr:8989
       SONARR_API_KEY: your_sonarr_api_key
       SECRET_KEY: your_random_secret
@@ -119,8 +123,10 @@ If no OIDC provider is configured, or the provider is unavailable, the login pag
 
 | Variable | Required | Description |
 |---|---|---|
-| `TAUTULLI_URL` | yes | e.g. `http://tautulli:8181` |
-| `TAUTULLI_API_KEY` | yes | Tautulli > Settings > Web Interface |
+| `TAUTULLI_URL` | one of Tautulli/Jellyfin | e.g. `http://tautulli:8181` |
+| `TAUTULLI_API_KEY` | one of Tautulli/Jellyfin | Tautulli > Settings > Web Interface |
+| `JELLYFIN_URL` | one of Tautulli/Jellyfin | e.g. `http://jellyfin:8096` |
+| `JELLYFIN_API_KEY` | one of Tautulli/Jellyfin | Jellyfin > Dashboard > API Keys |
 | `SONARR_URL` | yes | e.g. `http://sonarr:8989` |
 | `SONARR_API_KEY` | yes | Sonarr > Settings > General |
 | `SECRET_KEY` | yes | Random secret for session signing and OIDC secret encryption. Generate with `openssl rand -base64 32` |
@@ -143,6 +149,10 @@ These live in the Settings tab, stored in SQLite:
 | `webhook_enabled` | off | React on play via webhook, polling drops to a fallback |
 | `webhook_secret` | (none) | Optional secret to validate incoming webhook requests |
 | `session_max_age_hours` | 24 | How long before users are signed out |
+
+## Webhook setup
+
+Episode Guard accepts webhooks from both Tautulli and Jellyfin at the same endpoint. The source is detected automatically from the payload shape — no configuration needed.
 
 ## Tautulli webhook setup
 
@@ -182,6 +192,21 @@ Header value: <your secret>
 Tautulli path: Notification Agents > your webhook > **Headers** tab.
 
 If a secret is configured and the header is missing or wrong, Episode Guard returns `401` and ignores the request.
+
+## Jellyfin webhook setup
+
+1. In Jellyfin, go to Dashboard > Plugins > Catalog and install the **Webhook** plugin, then restart Jellyfin
+2. Go to Dashboard > Plugins > Webhook and add a new destination:
+   - **URL:** `http://your-episodeguard-host:8988/api/webhook`
+   - **Notification Type:** Playback Start
+   - **Template:** Default (no customisation needed)
+3. If you have a webhook secret configured, add it under **Headers**: `X-Webhook-Token: <your secret>`
+
+Episode Guard detects Jellyfin payloads automatically. For reliable show matching, ensure your Jellyfin series have TVDB metadata populated (Dashboard > Libraries > refresh metadata). If TVDB is missing, Episode Guard falls back to title matching against Sonarr. If a title matches multiple series in Sonarr, the episode is skipped with a warning in the logs.
+
+## Dual-source operation
+
+When both Tautulli and Jellyfin are configured, Episode Guard polls both simultaneously and merges the results. If the same episode is detected on both sources at once (e.g. two users watching on different servers), it is processed once — the duplicate is dropped before any Sonarr calls are made.
 
 ## Version display
 
