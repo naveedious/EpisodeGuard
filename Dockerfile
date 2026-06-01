@@ -15,7 +15,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY package.json ./
 COPY src/ ./src/
 
-RUN mkdir -p /data
+RUN mkdir -p /data && chown -R node:node /app /data
 
 ARG BUILD_DATE
 ARG VERSION
@@ -35,5 +35,7 @@ ENV DATA_DIR=/data
 EXPOSE 8988
 
 VOLUME ["/data"]
+
+USER node
 
 CMD ["node", "src/index.js"]
