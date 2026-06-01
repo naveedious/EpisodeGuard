@@ -1,10 +1,18 @@
 import { Router } from 'express';
+import { createRequire } from 'module';
 import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered } from '../db.js';
 import { getPlayingEpisodes } from '../tautulli.js';
 import { state, restartPolling, handleWebhookTrigger } from '../watcher.js';
 import { addSseClient, removeSseClient } from '../events.js';
 
+const require = createRequire(import.meta.url);
+const { version } = require('../../package.json');
+
 const router = Router();
+
+router.get('/version', (req, res) => {
+  res.json({ version });
+});
 
 router.get('/status', (req, res) => {
   res.json({

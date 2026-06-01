@@ -1,6 +1,6 @@
 # Episode Guard
 
-> A ferret that makes sure your next episode is ready before you want to watch it.
+> A Digital ferret that makes sure your next episode is ready before you want to watch it.
 
 Episode Guard watches Tautulli for what you're playing and tells Sonarr to grab upcoming episodes before you get there. No more finishing an episode and finding the next one isn't downloaded.
 
@@ -181,6 +181,10 @@ Header value: <your secret>
 Tautulli path: Notification Agents > your webhook > **Headers** tab.
 
 If a secret is configured and the header is missing or wrong, Episode Guard returns `401` and ignores the request.
+
+## Version display
+
+The app header shows the current version (e.g. `v2.0.0`) next to the Episode Guard logo. It reads from `/api/version`, which pulls the version field from `package.json` at startup.
 
 ## Building
 

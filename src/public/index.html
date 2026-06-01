@@ -14,8 +14,9 @@
     a{color:var(--accent);text-decoration:none;}
     .app{display:flex;flex-direction:column;min-height:100vh;}
     header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;display:flex;align-items:center;gap:24px;height:56px;}
-    header h1{font-size:16px;font-weight:700;letter-spacing:.5px;color:var(--text);flex-shrink:0;}
+    header h1{font-size:16px;font-weight:700;letter-spacing:.5px;color:var(--text);flex-shrink:0;display:flex;align-items:baseline;gap:8px;}
     header h1 span{color:var(--accent);}
+    .version-badge{font-size:10px;font-weight:500;color:var(--muted);background:var(--border);padding:2px 6px;border-radius:4px;letter-spacing:.3px;}
     nav{display:flex;gap:4px;}
     nav button{background:none;border:none;color:var(--muted);font-size:13px;padding:6px 14px;border-radius:6px;cursor:pointer;transition:background .15s,color .15s;}
     nav button:hover{background:var(--border);color:var(--text);}
@@ -132,7 +133,7 @@
 <body>
 <div class="app">
   <header>
-    <h1>Episode<span>Guard</span></h1>
+    <h1>Episode<span>Guard</span><span class="version-badge" id="version-badge"></span></h1>
     <nav>
       <button class="active" onclick="showView('dashboard',this)">Dashboard</button>
       <button onclick="showView('logs',this)">Logs</button>
@@ -736,6 +737,11 @@
     el.textContent=msg; el.className='toast '+type; el.style.display='block';
     setTimeout(()=>{el.style.display='none';},4000);
   }
+
+  fetch('/api/version').then(r=>r.json()).then(({version})=>{
+    const el=document.getElementById('version-badge');
+    if(el) el.textContent='v'+version;
+  }).catch(()=>{});
 
   loadDashboard();
   initSse();

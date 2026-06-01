@@ -7,9 +7,6 @@
   "scripts": {
     "start": "node src/index.js"
   },
-  "overrides": {
-    "picomatch": "^4.0.4"
-  },
   "dependencies": {
     "express": "^4.19.2",
     "better-sqlite3": "^9.6.0",
