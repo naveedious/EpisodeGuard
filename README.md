@@ -8,7 +8,7 @@ Episode Guard watches Tautulli for what you're playing and tells Sonarr to grab 
 
 Every time Tautulli sees you watching a TV episode, Episode Guard:
 
-1. Looks ahead a configurable number of episodes and grabs anything missing
+1. Looks ahead a configurable number of episodes and grabs anything missing. Before triggering a search, it checks the Sonarr queue — if an episode is already downloading, queued, or pending, the search is skipped to avoid duplicate grabs. If an episode is in a failed or warning state, it re-searches normally.
 2. Near the end of a season, checks what's next:
    - If the next season hasn't aired or is still airing, marks the whole season monitored so Sonarr picks up episodes as they release, and searches for any aired-but-missing episodes
    - If the next season has fully aired, searches all missing episodes by ID directly (bypasses monitored status)
@@ -24,6 +24,7 @@ You can also point Tautulli webhooks at Episode Guard so it reacts the moment yo
 | **Confirmed** | Currently playing, on disk by definition |
 | **Grabbed** | Search triggered in Sonarr for a missing episode |
 | **On Disk** | Upcoming episode already on disk, or not aired yet. One row per episode |
+| **In Queue** | Episode is already downloading or queued in Sonarr, search skipped |
 | **Monitored** | Upcoming episode wasn't monitored, fixed so Sonarr grabs it when it airs |
 | **Season Monitored** | Near season end, next season marked monitored |
 | **Error** | Something went wrong, check the details column |

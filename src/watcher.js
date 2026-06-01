@@ -4,6 +4,7 @@ import {
   getTwoSeasonEpisodes,
   ensureUpcomingEpisodes,
   checkSeasonEndAndPreload,
+  getSonarrQueue,
 } from './sonarr.js';
 import { getSetting, logEvent, purgeOldLogs } from './db.js';
 
@@ -60,7 +61,7 @@ export async function handleWebhookTrigger(ep) {
         details: { message: 'Show not found in Sonarr', trigger: 'webhook', tvdbId } });
       return;
     }
-    await processEpisode(ep, series, 'webhook');
+    await processEpisode(ep, series, 'webhook', await getSonarrQueue());
   } catch (err) {
     console.error('[watcher] Webhook error for ' + label + ':', err.message);
     logEvent({ event_type: 'error', show_title: showTitle, season, episode, details: { message: err.message, trigger: 'webhook' } });
@@ -86,17 +87,23 @@ async function runWatcher() {
   state.webhookEnabled = webhookEnabled;
 
   let episodes;
+  let queuedEpisodeIds;
   try {
     if (webhookEnabled) {
-      episodes = await getPlayingEpisodes();
+      [episodes, queuedEpisodeIds] = await Promise.all([
+        getPlayingEpisodes(),
+        getSonarrQueue(),
+      ]);
     } else {
-      const [playing, recent] = await Promise.all([
+      const [playing, recent, queue] = await Promise.all([
         getPlayingEpisodes(),
         getRecentlyWatchedEpisodes(parseInt(getSetting('poll_interval_seconds'), 10) * 2),
+        getSonarrQueue(),
       ]);
       const seen = new Set(playing.map(e => e.showTitle + '-S' + e.season + 'E' + e.episode));
       const uniqueRecent = recent.filter(e => !seen.has(e.showTitle + '-S' + e.season + 'E' + e.episode));
       episodes = [...playing, ...uniqueRecent];
+      queuedEpisodeIds = queue;
     }
   } catch (err) {
     state.lastError = err.message;
@@ -137,7 +144,7 @@ async function runWatcher() {
         console.log('[watcher] ' + label + ' already processed this session');
         continue;
       }
-      await processEpisode(ep, series, 'poll');
+      await processEpisode(ep, series, 'poll', queuedEpisodeIds);
       processed.set(sessionKey, cacheKey);
       state.lastError = null;
     } catch (err) {
@@ -152,7 +159,7 @@ async function runWatcher() {
   }
 }
 
-async function processEpisode(ep, series, trigger) {
+async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set()) {
   const { showTitle, season, episode } = ep;
   const label = '"' + showTitle + '" S' + pad(season) + 'E' + pad(episode);
 
@@ -167,7 +174,7 @@ async function processEpisode(ep, series, trigger) {
 
   // 1. Ensure upcoming episodes
   console.log('[watcher] Checking upcoming for ' + label);
-  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded);
+  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded, queuedEpisodeIds);
 
   // Log one row per upcoming episode action
   for (const a of result.actions) {
@@ -185,6 +192,9 @@ async function processEpisode(ep, series, trigger) {
       logEvent({ event_type: 'episode_monitored', show_title: showTitle, season: epSeason, episode: epEpisode,
         details: { message: 'Set monitored' + airMsg, trigger,
           apiCall: a.apiCall, apiStatus: a.apiStatus } });
+    } else if (a.action === 'skipped_in_queue') {
+      logEvent({ event_type: 'episode_skipped', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: 'Already in Sonarr queue', trigger } });
     } else if (a.action === 'search_triggered') {
       logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season: epSeason, episode: epEpisode,
         details: { message: 'Search triggered - missing episode', trigger,
@@ -192,7 +202,7 @@ async function processEpisode(ep, series, trigger) {
     }
   }
 
-  console.log('[watcher] ' + label + ' - monitored ' + result.monitored + ', grabbed ' + result.grabbed + ', skipped ' + result.skipped + ', future ' + result.future);
+  console.log('[watcher] ' + label + ' - monitored ' + result.monitored + ', grabbed ' + result.grabbed + ', skipped ' + result.skipped + ', inQueue ' + result.inQueue + ', future ' + result.future);
 
   // 2. Season-end pre-load (reuses preloaded episodes — no extra API call)
   const seasonPreloaded = await checkSeasonEndAndPreload(series.id, season, episode, preloaded);

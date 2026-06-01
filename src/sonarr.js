@@ -24,6 +24,25 @@ async function sonarrReq(method, path, body) {
   return res.json();
 }
 
+const QUEUE_SKIP_STATUSES = new Set(['downloading', 'queued', 'delay', 'completed']);
+
+export async function getSonarrQueue() {
+  try {
+    const data = await sonarrReq('GET', '/queue?pageSize=500&includeEpisode=false');
+    const records = data?.records ?? (Array.isArray(data) ? data : []);
+    const queuedIds = new Set();
+    for (const item of records) {
+      if (item.episodeId && QUEUE_SKIP_STATUSES.has(item.status?.toLowerCase())) {
+        queuedIds.add(item.episodeId);
+      }
+    }
+    return queuedIds;
+  } catch (err) {
+    console.error('[sonarr] Failed to fetch queue:', err.message);
+    return new Set(); // fail open — don't block normal processing
+  }
+}
+
 export async function findSeriesByTvdbId(tvdbId) {
   const results = await sonarrReq('GET', '/series?tvdbId=' + tvdbId);
   return Array.isArray(results) ? (results[0] ?? null) : (results ?? null);
@@ -42,7 +61,7 @@ export async function getTwoSeasonEpisodes(seriesId, season) {
 }
 
 
-export async function ensureUpcomingEpisodes(seriesId, season, episode, preloaded) {
+export async function ensureUpcomingEpisodes(seriesId, season, episode, preloaded, queuedEpisodeIds = new Set()) {
   const lookahead = parseInt(getSetting('lookahead_episodes'), 10);
   const allEps = preloaded
     ? [...preloaded.current, ...preloaded.next]
@@ -106,8 +125,18 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
     if (a) a.airDateUtc = ep.airDateUtc;
   }
 
-  if (missing.length) {
-    const ids = missing.map(e => e.id);
+  const inQueue  = missing.filter(e => queuedEpisodeIds.has(e.id));
+  const toSearch = missing.filter(e => !queuedEpisodeIds.has(e.id));
+
+  for (const ep of inQueue) {
+    actions.push({
+      episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber,
+      action: 'skipped_in_queue',
+    });
+  }
+
+  if (toSearch.length) {
+    const ids = toSearch.map(e => e.id);
     const requestBody = { name: 'EpisodeSearch', episodeIds: ids };
     console.log('[sonarr] EpisodeSearch for ' + ids.length + ' episode(s): ids=[' + ids + ']');
     let searchStatus;
@@ -118,7 +147,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
       searchStatus = 'failed: ' + err.message;
       console.error('[sonarr] EpisodeSearch failed:', err.message);
     }
-    for (const ep of missing) {
+    for (const ep of toSearch) {
       actions.push({
         episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber,
         action: 'search_triggered', reason: 'not_on_disk',
@@ -128,7 +157,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
     }
   }
 
-  return { monitored: futureUnmonitored.length, grabbed: missing.length, skipped: onDisk.length, future: future.length, actions };
+  return { monitored: futureUnmonitored.length, grabbed: toSearch.length, skipped: onDisk.length, inQueue: inQueue.length, future: future.length, actions };
 }
 
 export async function checkSeasonEndAndPreload(seriesId, season, episode, preloaded) {
