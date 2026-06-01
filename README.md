@@ -231,3 +231,17 @@ The app header shows the current version (e.g. `v2.0.0`) next to the Episode Gua
 ```bash
 docker build -t episodeguard .
 ```
+
+## Contributing
+
+All changes go through a branch and pull request — nothing gets merged directly to `main`.
+
+1. Create a branch off `main` with a short descriptive name:
+   ```bash
+   git checkout -b fix/webhook-auth
+   ```
+2. Make your changes and commit them with a clear message.
+3. Push the branch and open a pull request against `main`.
+4. The PR description should explain what changed and why.
+
+There's no formal review requirement for a solo project, but the branch/PR flow keeps the history clean and makes it easy to revert if something breaks.
