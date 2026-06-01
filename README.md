@@ -57,6 +57,34 @@ Then start it:
 docker compose up -d
 ```
 
+### Running rootless
+
+The container runs as the built-in `node` user (uid 1000). If you bind-mount the data directory, the host folder needs to be writable by uid 1000.
+
+First check what uid your host user is:
+
+```bash
+id your-username
+```
+
+If it is uid 1000, just make sure the data folder is writable:
+
+```bash
+chmod -R u+w ./data
+```
+
+If it is a different uid, transfer ownership to 1000 directly:
+
+```bash
+chown -R 1000:1000 ./data
+```
+
+If the data directory does not exist yet, create it with the right ownership before starting the container:
+
+```bash
+mkdir -p ./data && chown 1000:1000 ./data
+```
+
 Open `http://localhost:8988` and you'll be redirected to the login page.
 
 On first run, a local `admin` account is created and the temporary password is printed to the container logs:
