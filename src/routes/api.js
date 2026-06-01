@@ -6,7 +6,8 @@ import { state, restartPolling, handleWebhookTrigger } from '../watcher.js';
 import { addSseClient, removeSseClient } from '../events.js';
 
 const require = createRequire(import.meta.url);
-const { version } = require('../../package.json');
+const { version: pkgVersion } = require('../../package.json');
+const version = process.env.APP_VERSION || pkgVersion;
 
 const router = Router();
 

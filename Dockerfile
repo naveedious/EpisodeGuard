@@ -21,6 +21,8 @@ ARG BUILD_DATE
 ARG VERSION
 ARG REVISION
 
+ENV APP_VERSION=$VERSION
+
 LABEL org.opencontainers.image.title="Episode Guard" \
       org.opencontainers.image.description="Watches Tautulli and keeps Sonarr ahead of what you're watching" \
       org.opencontainers.image.url="https://github.com/naveedious/episodeguard" \
