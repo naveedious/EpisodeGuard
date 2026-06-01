@@ -1,0 +1,3 @@
+# picomatch is not in the dependency tree (not in package-lock.json).
+# Trivy is picking this up from a stale node_modules artefact.
+CVE-2026-33671
