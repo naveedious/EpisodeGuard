@@ -1,6 +1,20 @@
-# Episode Guard
+<div align="center">
+  <img src="docs/userformainlogo.png" alt="Episode Guard" width="480" />
+</div>
 
-> A Digital ferret that makes sure your next episode is ready before you want to watch it.
+<br/>
+
+<div align="center">
+
+A digital ferret that makes sure your next episode is ready before you want to watch it.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+
+</div>
+
+---
 
 Episode Guard watches Tautulli for what you're playing and tells Sonarr to grab upcoming episodes before you get there. No more finishing an episode and finding the next one isn't downloaded.
 
