@@ -98,7 +98,7 @@ On first run, a local `admin` account is created and the temporary password is p
 docker logs episodeguard 2>&1 | grep -A5 "FIRST RUN"
 ```
 
-Change the password in **Settings > Change Local Password** after logging in.
+Change the password in **Settings > Account > Change Local Password** after logging in.
 
 ## Authentication
 

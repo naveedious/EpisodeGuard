@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { createRequire } from 'module';
 import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered } from '../db.js';
 import { getPlayingEpisodes } from '../tautulli.js';
+import { getJellyfinSessions } from '../jellyfin.js';
 import { state, restartPolling, handleWebhookTrigger } from '../watcher.js';
 import { addSseClient, removeSseClient } from '../events.js';
+import { sources } from '../config.js';
 
 const require = createRequire(import.meta.url);
 const { version: pkgVersion } = require('../../package.json');
@@ -25,11 +27,24 @@ router.get('/status', (req, res) => {
 
 router.get('/dashboard', async (req, res) => {
   try {
-    const [stats, activity, nowPlaying] = await Promise.all([
+    const nowPlayingFetchers = [];
+    if (sources.tautulli) nowPlayingFetchers.push(getPlayingEpisodes().catch(() => []));
+    if (sources.jellyfin)  nowPlayingFetchers.push(getJellyfinSessions().catch(() => []));
+
+    const [stats, activity, ...nowPlayingSources] = await Promise.all([
       Promise.resolve(getDashboardStats()),
       Promise.resolve(getRecentActivity(50)),
-      getPlayingEpisodes().catch(() => []),
+      ...nowPlayingFetchers,
     ]);
+
+    const seen = new Set();
+    const nowPlaying = nowPlayingSources.flat().filter(ep => {
+      const key = ep.showTitle + '-S' + ep.season + 'E' + ep.episode;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     res.json({ stats, activity, nowPlaying, status: {
       lastPollAt: state.lastPollAt, nextPollAt: state.nextPollAt,
       isRunning: state.isRunning, lastError: state.lastError, webhookEnabled: state.webhookEnabled,
