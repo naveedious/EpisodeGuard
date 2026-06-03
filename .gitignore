@@ -6,4 +6,3 @@ data/
 .env
 .env.local
 npm-debug.log*
-package-lock.json
