@@ -1,0 +1,66 @@
+# Gitleaks configuration for Episode Guard
+# Scans commit history and the working tree for leaked secrets.
+# Run locally:  gitleaks dir . --config .gitleaks.toml
+# Docs: https://github.com/gitleaks/gitleaks
+
+title = "Episode Guard gitleaks config"
+
+# Inherit gitleaks' built-in rule set (AWS, GitHub, Slack, private keys, JWTs,
+# generic high-entropy keys, etc.), then layer the project-specific rules below.
+[extend]
+useDefault = true
+
+# --- Project-specific rules ---
+
+[[rules]]
+id = "episodeguard-media-api-key"
+description = "Tautulli / Sonarr / Jellyfin API key"
+regex = '''(?i)\b(?:tautulli|sonarr|jellyfin)_api_key\s*[:=]\s*["']?([0-9a-f]{20,})["']?'''
+secretGroup = 1
+keywords = ["tautulli_api_key", "sonarr_api_key", "jellyfin_api_key"]
+tags = ["api-key", "media-stack"]
+
+[[rules]]
+id = "episodeguard-secret-key"
+description = "Episode Guard SECRET_KEY (session signing + OIDC encryption)"
+regex = '''(?i)\bsecret_key\s*[:=]\s*["']?([A-Za-z0-9+/=_\-]{16,})["']?'''
+secretGroup = 1
+keywords = ["secret_key"]
+tags = ["secret"]
+
+[[rules]]
+id = "episodeguard-oidc-client-secret"
+description = "OIDC provider client secret"
+regex = '''(?i)\bclient_secret\s*[:=]\s*["']?([A-Za-z0-9._\-]{16,})["']?'''
+secretGroup = 1
+keywords = ["client_secret"]
+tags = ["oidc", "secret"]
+
+# --- Allowlist ---
+# Documented placeholders, env templates, and lockfile integrity hashes are not
+# secrets. Kept as regexes (not whole-file ignores) where possible so a real leak
+# in a docs file is still caught. Stopwords cover frontend JS expressions that
+# look like secret assignments (e.g. client_secret:document.getElementById(...)).
+
+[allowlist]
+description = "Ignore documented placeholders, templates, and lockfile hashes"
+paths = [
+  '''\.env\.example$''',
+  '''(^|/)package-lock\.json$''',
+]
+regexes = [
+  '''your_(?:tautulli|sonarr|jellyfin)_api_key''',
+  '''your_random_secret''',
+  '''change-me(?:-to-a-random-secret)?''',
+  '''\$\{[A-Z0-9_]+\}''',
+  '''<your secret>''',
+]
+stopwords = [
+  "example",
+  "placeholder",
+  "changeme",
+  "your_",
+  "getelementbyid",
+  "decrypt",
+  "encrypt",
+]

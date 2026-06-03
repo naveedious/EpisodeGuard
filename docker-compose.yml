@@ -14,9 +14,8 @@ services:
       TAUTULLI_API_KEY: ${TAUTULLI_API_KEY}
       SONARR_URL: ${SONARR_URL}
       SONARR_API_KEY: ${SONARR_API_KEY}
-      # ── Web UI auth (required) ───────────────────────────────────────────
-      WEB_USERNAME: ${WEB_USERNAME}
-      WEB_PASSWORD: ${WEB_PASSWORD}
+      # Signs session cookies and encrypts OIDC secrets. Generate: openssl rand -base64 32
+      SECRET_KEY: ${SECRET_KEY}
       # ── Optional ────────────────────────────────────────────────────────
       DATA_DIR: /data
 

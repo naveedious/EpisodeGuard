@@ -232,6 +232,14 @@ The app header shows the current version (e.g. `v2.0.0`) next to the Episode Gua
 docker build -t episodeguard .
 ```
 
+## Security
+
+Secrets (API keys, `SECRET_KEY`, OIDC client secrets) are never committed. A gitleaks scan runs in CI on every push and pull request (`.github/workflows/gitleaks.yml`) using the rules in `.gitleaks.toml`, and fails the build if anything leaks. To scan locally before pushing:
+
+```bash
+gitleaks dir . --config .gitleaks.toml
+```
+
 ## Contributing
 
 All changes go through a branch and pull request — nothing gets merged directly to `main`.
