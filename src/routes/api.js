@@ -67,6 +67,7 @@ router.get('/logs/stream', (req, res) => {
   res.setHeader('Content-Type',  'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection',    'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // stop nginx/proxy buffering so SSE streams immediately
   res.flushHeaders();
 
   // Seed with events from the last 10 minutes only

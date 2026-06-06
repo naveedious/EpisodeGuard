@@ -540,8 +540,16 @@
         if (currentView === 'dashboard') prependDashboardRow(row);
       } catch {}
     };
-    sseSource.onopen  = () => { const d=document.getElementById('live-dot'); if(d)d.classList.remove('paused'); };
-    sseSource.onerror = () => { const d=document.getElementById('live-dot'); if(d)d.classList.add('paused'); };
+    sseSource.onopen  = () => {
+      const d=document.getElementById('live-dot'); if(d)d.classList.remove('paused');
+      const empty=document.getElementById('live-feed')?.querySelector('.live-empty');
+      if(empty) empty.textContent='Connected. Waiting for new events...';
+    };
+    sseSource.onerror = () => {
+      const d=document.getElementById('live-dot'); if(d)d.classList.add('paused');
+      const empty=document.getElementById('live-feed')?.querySelector('.live-empty');
+      if(empty) empty.textContent='Disconnected. Reconnecting...';
+    };
   }
 
   function initLiveFeed() {
