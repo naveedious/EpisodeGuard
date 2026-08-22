@@ -21,17 +21,21 @@ export async function sendAppriseNotification(eventType, { showTitle, season, ep
   const show = showTitle ?? '';
 
   const titles = {
-    episode_grabbed:   `Episode Guard — Episode Grabbed`,
-    episode_monitored: `Episode Guard — Episode Monitored`,
-    season_monitored:  `Episode Guard — Season Monitored`,
-    error:             `Episode Guard — Error`,
+    episode_grabbed:    `Episode Guard — Episode Grabbed`,
+    episode_monitored:  `Episode Guard — Episode Monitored`,
+    season_monitored:   `Episode Guard — Season Monitored`,
+    episode_remediated: `Episode Guard — Bad File Remediated`,
+    episode_corrupt:    `Episode Guard — Corrupt File Warning`,
+    error:              `Episode Guard — Error`,
   };
 
   const bodies = {
-    episode_grabbed:   `${show} ${ep} — search triggered (not yet on disk)`,
-    episode_monitored: `${show} ${ep} — not monitored; set monitored and search triggered`,
-    season_monitored:  `${show} S${String(season ?? 0).padStart(2, '0')} — season pre-monitored near season end`,
-    error:             `${show} ${ep} — ${details?.message ?? 'unknown error'}`,
+    episode_grabbed:    `${show} ${ep} — search triggered (not yet on disk)`,
+    episode_monitored:  `${show} ${ep} — not monitored; set monitored and search triggered`,
+    season_monitored:   `${show} S${String(season ?? 0).padStart(2, '0')} — season pre-monitored near season end`,
+    episode_remediated: `${show} ${ep} — bad/truncated file deleted, search queued in Sonarr: ${details?.message ?? ''}`,
+    episode_corrupt:    `${show} ${ep} — corrupt/truncated file detected: ${details?.message ?? ''}`,
+    error:              `${show} ${ep} — ${details?.message ?? 'unknown error'}`,
   };
 
   const title = titles[eventType] ?? `Episode Guard — ${eventType}`;
