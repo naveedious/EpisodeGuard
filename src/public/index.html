@@ -297,6 +297,23 @@
               <div class="hint">Path where media is mounted inside this container (e.g. /tv).</div>
               <input type="text" id="s-local-prefix" placeholder="/tv">
             </div>
+            <div class="field" style="margin-top:14px;">
+              <label>Test Specific Path (Optional)</label>
+              <div class="hint">Leave empty to auto-test a real episode from Sonarr, or enter a custom path.</div>
+              <input type="text" id="s-test-custom-path" placeholder="e.g. /data/TV/Show/Season 01/S01E01.mkv">
+            </div>
+            <div style="margin-top:16px;">
+              <button type="button" class="btn-ghost" id="btn-test-integrity" onclick="testIntegrityConfig()">
+                <span>🔍 Test Configuration</span>
+              </button>
+            </div>
+            <div id="integrity-test-results" style="display:none;margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;">
+              <div style="font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+                <span id="test-overall-status">Running diagnostic...</span>
+                <span id="test-spinner" style="font-size:12px;color:var(--muted);">⏳ Testing</span>
+              </div>
+              <div id="test-steps-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
           </div>
           <div class="settings-group">
             <div class="settings-group-title">Log Retention</div>
@@ -731,6 +748,68 @@
     document.getElementById('webhook-url-display').textContent = location.origin+'/api/webhook';
     loadProviders();
     loadAllowedUsers();
+  }
+
+  async function testIntegrityConfig() {
+    const btn = document.getElementById('btn-test-integrity');
+    const resultsBox = document.getElementById('integrity-test-results');
+    const statusText = document.getElementById('test-overall-status');
+    const spinner = document.getElementById('test-spinner');
+    const list = document.getElementById('test-steps-list');
+
+    btn.disabled = true;
+    resultsBox.style.display = 'block';
+    statusText.textContent = 'Running diagnostic checks...';
+    statusText.style.color = 'var(--text)';
+    spinner.style.display = 'inline';
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px;">Querying Sonarr, checking local file permissions & executing stream probe...</div>';
+
+    const payload = {
+      sonarr_path_prefix:        document.getElementById('s-sonarr-prefix').value,
+      local_path_prefix:         document.getElementById('s-local-prefix').value,
+      runtime_tolerance_percent: document.getElementById('s-runtime-tolerance').value,
+      probe_tail_seconds:        document.getElementById('s-tail-seconds').value,
+      custom_path:               document.getElementById('s-test-custom-path').value,
+    };
+
+    try {
+      const res = await fetch('/api/settings/test-integrity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      spinner.style.display = 'none';
+      btn.disabled = false;
+
+      if (!res.ok && !data.steps) {
+        statusText.textContent = '❌ Test failed: ' + (data.error || 'Server error');
+        statusText.style.color = 'var(--red)';
+        list.innerHTML = '';
+        return;
+      }
+
+      statusText.textContent = data.ok ? '✅ Configuration Valid — All Checks Passed' : '❌ Configuration Issue Detected';
+      statusText.style.color = data.ok ? 'var(--green)' : 'var(--red)';
+
+      list.innerHTML = (data.steps || []).map(s => {
+        let icon = s.status === 'ok' ? '✅' : (s.status === 'warn' ? '⚠️' : '❌');
+        let color = s.status === 'ok' ? 'var(--green)' : (s.status === 'warn' ? 'var(--orange)' : 'var(--red)');
+        return `
+          <div style="border-left:3px solid ${color};padding-left:10px;margin-bottom:4px;">
+            <div style="font-weight:600;color:var(--text);">${icon} ${esc(s.step)}</div>
+            <div style="font-size:12px;color:${color};margin-top:2px;">${esc(s.message)}</div>
+            ${s.detail ? `<div style="font-size:11px;color:var(--muted);font-family:monospace;margin-top:2px;">${esc(s.detail)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+    } catch (err) {
+      spinner.style.display = 'none';
+      btn.disabled = false;
+      statusText.textContent = '❌ Diagnostic failed: ' + err.message;
+      statusText.style.color = 'var(--red)';
+    }
   }
 
   async function saveSettings() {
