@@ -9,6 +9,7 @@ RUN npm ci --omit=dev
 
 # Stage 2: lean runtime image
 FROM node:22-alpine
+RUN apk add --no-cache ffmpeg
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
