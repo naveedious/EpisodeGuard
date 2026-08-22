@@ -1,3 +1,6 @@
+import { resolveLocalPath, probeMediaFile } from '../prober.js';
+import { getEpisodeFile } from '../sonarr.js';
+import fs from 'fs';
 import { Router } from 'express';
 import { createRequire } from 'module';
 import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered } from '../db.js';
@@ -162,6 +165,154 @@ router.post('/settings', (req, res) => {
   setSettings(updates);
   if (updates.poll_interval_seconds || updates.webhook_enabled !== undefined) restartPolling();
   res.json({ ok: true, settings: getAllSettings() });
+});
+
+
+router.post('/settings/test-integrity', async (req, res) => {
+  const sonarrPrefix = req.body.sonarr_path_prefix || '/data/TV';
+  const localPrefix = req.body.local_path_prefix || '/tv';
+  const tolerancePercent = parseInt(req.body.runtime_tolerance_percent || '80', 10);
+  const tailSeconds = parseInt(req.body.probe_tail_seconds || '30', 10);
+  const customPath = req.body.custom_path ? req.body.custom_path.trim() : '';
+
+  const steps = [];
+  
+  try {
+    let sonarrPath = customPath;
+    let expectedRuntimeSec = null;
+    let sampleInfo = null;
+
+    // Step 1: Resolve target file (from Sonarr or custom path)
+    if (!sonarrPath) {
+      // Query Sonarr for a recent series with files
+      try {
+        const seriesList = await (await import('../sonarr.js')).findSeriesByTitle('') || [];
+        // Fallback: query /series directly if findSeriesByTitle('') returns null
+        const allSeries = Array.isArray(seriesList) && seriesList.length ? seriesList : await (async () => {
+          try {
+            const { env } = await import('../config.js');
+            const r = await fetch(env.sonarrUrl + '/api/v3/series', {
+              headers: { 'X-Api-Key': env.sonarrApiKey }
+            });
+            return r.ok ? await r.json() : [];
+          } catch { return []; }
+        })();
+
+        // Find a series with files on disk
+        const targetSeries = allSeries.find(s => s.statistics && s.statistics.episodeFileCount > 0) || allSeries[0];
+        
+        if (targetSeries) {
+          const { env } = await import('../config.js');
+          const r = await fetch(`${env.sonarrUrl}/api/v3/episodefile?seriesId=${targetSeries.id}`, {
+            headers: { 'X-Api-Key': env.sonarrApiKey }
+          });
+          if (r.ok) {
+            const files = await r.json();
+            if (Array.isArray(files) && files.length > 0) {
+              const file = files[0];
+              sonarrPath = file.path;
+              sampleInfo = `${targetSeries.title} (${file.relativePath || file.sceneName || 'Episode'})`;
+              if (file.mediaInfo && file.mediaInfo.runTime) {
+                if (typeof file.mediaInfo.runTime === 'number') expectedRuntimeSec = file.mediaInfo.runTime * 60;
+                else if (typeof file.mediaInfo.runTime === 'string') {
+                  const parts = file.mediaInfo.runTime.split(':').map(Number);
+                  if (parts.length === 3) expectedRuntimeSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                  else if (parts.length === 2) expectedRuntimeSec = parts[0] * 60 + parts[1];
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        steps.push({
+          step: 'Sonarr File Query',
+          status: 'warn',
+          message: `Could not auto-select episode from Sonarr: ${err.message}`,
+        });
+      }
+    }
+
+    if (!sonarrPath) {
+      steps.push({
+        step: 'Target File Selection',
+        status: 'error',
+        message: 'No on-disk episodes found in Sonarr and no custom path provided to test.',
+      });
+      return res.json({ ok: false, steps });
+    }
+
+    steps.push({
+      step: 'Target File',
+      status: 'ok',
+      message: sampleInfo ? `Selected sample: ${sampleInfo}` : 'Target path selected',
+      detail: `Sonarr Path: ${sonarrPath}`,
+    });
+
+    // Step 2: Prefix mapping
+    const localPath = resolveLocalPath(sonarrPath, sonarrPrefix, localPrefix);
+    const mappingApplied = localPath !== sonarrPath;
+    steps.push({
+      step: 'Path Prefix Translation',
+      status: 'ok',
+      message: mappingApplied ? `Translated '${sonarrPrefix}' → '${localPrefix}'` : 'Path used as-is (prefix did not match or identical)',
+      detail: `Container Local Path: ${localPath}`,
+    });
+
+    // Step 3: Container file accessibility and permissions check
+    try {
+      await fs.promises.access(localPath, fs.constants.R_OK);
+      const stat = await fs.promises.stat(localPath);
+      steps.push({
+        step: 'Container Volume & Permissions',
+        status: 'ok',
+        message: `File is readable in container (${(stat.size / (1024 * 1024)).toFixed(1)} MB)`,
+        detail: `Local Path: ${localPath}`,
+      });
+    } catch (err) {
+      steps.push({
+        step: 'Container Volume & Permissions',
+        status: 'error',
+        message: `Container cannot read file: ${err.message}`,
+        detail: `Check that your media volume mount (e.g. -v /host/path:${localPrefix}:ro) exists and is readable by uid 1000.`,
+      });
+      return res.json({ ok: false, steps, localPath, sonarrPath });
+    }
+
+    // Step 4: Run ffprobe & ffmpeg tail decode
+    const probe = await probeMediaFile(localPath, {
+      expectedRuntimeSec,
+      tolerancePercent,
+      tailSeconds,
+      timeoutMs: 15000,
+    });
+
+    if (!probe.valid) {
+      steps.push({
+        step: 'Stream & Integrity Probe',
+        status: 'error',
+        message: `Integrity check failed: ${probe.reason} - ${probe.details}`,
+        detail: `Probed duration: ${probe.actualDurationSec ? Math.round(probe.actualDurationSec) + 's' : 'unknown'}`,
+      });
+      return res.json({ ok: false, steps, probe, localPath, sonarrPath });
+    }
+
+    steps.push({
+      step: 'Stream & Integrity Probe',
+      status: 'ok',
+      message: `ffprobe and ${tailSeconds}s ffmpeg tail decode passed cleanly (${Math.round(probe.actualDurationSec || 0)}s duration)`,
+      detail: probe.details,
+    });
+
+    return res.json({ ok: true, steps, probe, localPath, sonarrPath });
+
+  } catch (err) {
+    steps.push({
+      step: 'Test Execution',
+      status: 'error',
+      message: `Unexpected test failure: ${err.message}`,
+    });
+    return res.json({ ok: false, steps });
+  }
 });
 
 export default router;
