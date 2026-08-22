@@ -46,6 +46,8 @@
     .badge-season_monitored{background:rgba(249,115,22,.2);color:var(--orange);}
     .badge-error{background:rgba(239,68,68,.2);color:var(--red);}
     .badge-webhook_received{background:rgba(34,197,94,.15);color:var(--green);}
+    .badge-episode_remediated{background:rgba(239,68,68,.2);color:var(--red);font-weight:700;}
+    .badge-episode_corrupt{background:rgba(249,115,22,.2);color:var(--orange);font-weight:700;}
     .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .activity table{width:100%;border-collapse:collapse;}
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
@@ -265,6 +267,38 @@
             </div>
           </div>
           <div class="settings-group">
+            <div class="settings-group-title">Media File Integrity &amp; Remediation</div>
+            <div class="field">
+              <label>Integrity Check Mode</label>
+              <div class="hint">Check upcoming on-disk episodes for corruption or truncated length during lookahead.</div>
+              <select id="s-integrity-mode">
+                <option value="auto_remediate">Auto-Remediate (Delete bad file in Sonarr &amp; search replacement)</option>
+                <option value="notify_only">Notify Only (Alert &amp; log without deleting)</option>
+                <option value="disabled">Disabled (Skip integrity check)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Runtime Tolerance (%)</label>
+              <div class="hint">Minimum acceptable duration percentage vs Sonarr expected runtime before flagging as truncated. Default: 80%.</div>
+              <input type="number" id="s-runtime-tolerance" min="10" max="100">
+            </div>
+            <div class="field">
+              <label>Tail Decode Buffer (seconds)</label>
+              <div class="hint">Number of seconds at the end of the video stream to decode and verify EOF. Default: 30s.</div>
+              <input type="number" id="s-tail-seconds" min="5" max="300">
+            </div>
+            <div class="field">
+              <label>Sonarr Media Path Prefix</label>
+              <div class="hint">Path prefix reported by Sonarr (e.g. /data/TV).</div>
+              <input type="text" id="s-sonarr-prefix" placeholder="/data/TV">
+            </div>
+            <div class="field">
+              <label>Local Container Media Path Prefix</label>
+              <div class="hint">Path where media is mounted inside this container (e.g. /tv).</div>
+              <input type="text" id="s-local-prefix" placeholder="/tv">
+            </div>
+          </div>
+          <div class="settings-group">
             <div class="settings-group-title">Log Retention</div>
             <div class="field">
               <label>Retention Period (days)</label>
@@ -424,7 +458,7 @@
   const EVENT_LABELS = {
     episode_confirmed:'Confirmed', episode_grabbed:'Grabbed', episode_monitored:'Monitored',
     episode_skipped:'On Disk', season_monitored:'Season Monitored', error:'Error',
-    webhook_received:'Webhook',
+    webhook_received:'Webhook', episode_remediated:'Remediated', episode_corrupt:'Corrupt File',
   };
 
   function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}

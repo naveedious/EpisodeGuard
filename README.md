@@ -30,6 +30,25 @@ Every time Tautulli sees you watching a TV episode, Episode Guard:
 
 You can also point Tautulli webhooks at Episode Guard so it reacts the moment you press play, rather than waiting for the next poll.
 
+
+## Media file integrity checking & auto-remediation
+
+Episode Guard can inspect upcoming episodes already on disk during lookahead checks to catch corrupted downloads, incomplete files, or truncated releases before you reach them.
+
+### How it works:
+1. **Tier 1 (Runtime Validation):** Compares physical file duration against expected duration from Sonarr metadata. Flagged if actual duration is below the tolerance threshold (default: `< 80%`).
+2. **Tier 2 (Stream & Tail Probe):** If media storage is mounted, runs `ffprobe` and decodes the final 30 seconds of the video stream via `ffmpeg` to `/dev/null` (`-f null -`) to catch packet corruption and broken EOF.
+3. **Auto-Remediation:** If a bad file is detected and `integrity_check_mode` is set to `Auto-Remediate`, Episode Guard deletes the bad `episodeFile` in Sonarr via API and immediately triggers a replacement search. If set to `Notify Only`, it sends an alert and records the finding without deleting.
+4. **Verification Cache:** Clean files are cached in SQLite so files are only probed once.
+
+To enable local stream probing, bind-mount your TV media folder read-only in `docker-compose.yml`:
+
+```yaml
+volumes:
+  - ./data:/data
+  - /data/TV:/tv:ro
+```
+
 ## Activity log
 
 | Event | What it means |

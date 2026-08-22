@@ -59,6 +59,14 @@ function initSchema(db) {
       value TEXT NOT NULL
     );
 
+        CREATE TABLE IF NOT EXISTS verified_files (
+      file_id       INTEGER PRIMARY KEY,
+      status        TEXT    NOT NULL,
+      runtime_sec   INTEGER,
+      details       TEXT,
+      checked_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_activity_ts   ON activity_log(timestamp);
     CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(event_type);
     CREATE INDEX IF NOT EXISTS idx_activity_show ON activity_log(show_title);
@@ -76,7 +84,12 @@ export const SETTING_DEFAULTS = {
   apprise_events:        'episode_grabbed',
   webhook_enabled:       '0',
   webhook_secret:        '',
-  session_max_age_hours: '24',
+  session_max_age_hours:      '24',
+  integrity_check_mode:       'auto_remediate',
+  runtime_tolerance_percent:  '80',
+  probe_tail_seconds:         '30',
+  sonarr_path_prefix:         '/data/TV',
+  local_path_prefix:          '/tv',
 };
 
 export function getSetting(key) {
@@ -258,4 +271,25 @@ export function purgeOldLogs() {
   if (result.changes > 0) {
     console.log('[db] Purged ' + result.changes + ' log entries older than ' + days + ' days');
   }
+}
+
+// Verified files cache
+
+export function isEpisodeFileVerified(fileId) {
+  if (!fileId) return null;
+  const row = getDb().prepare('SELECT * FROM verified_files WHERE file_id = ?').get(fileId);
+  return row || null;
+}
+
+export function markEpisodeFileVerified(fileId, status, { runtime = null, details = null } = {}) {
+  if (!fileId) return;
+  getDb().prepare(`
+    INSERT OR REPLACE INTO verified_files (file_id, status, runtime_sec, details, checked_at)
+    VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  `).run(fileId, status, runtime, details);
+}
+
+export function clearVerifiedFile(fileId) {
+  if (!fileId) return;
+  getDb().prepare('DELETE FROM verified_files WHERE file_id = ?').run(fileId);
 }

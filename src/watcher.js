@@ -223,6 +223,12 @@ async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set())
       logEvent({ event_type: 'episode_grabbed', show_title: showTitle, season: epSeason, episode: epEpisode,
         details: { message: 'Search triggered - missing episode', trigger,
           apiCall: a.apiCall, apiStatus: a.apiStatus } });
+    } else if (a.action === 'remediated_corrupt_file') {
+      logEvent({ event_type: 'episode_remediated', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: a.details || 'Corrupt/truncated episode remediated', trigger, apiStatus: a.apiStatus } });
+    } else if (a.action === 'corrupt_file_detected_notify_only') {
+      logEvent({ event_type: 'episode_corrupt', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: a.details || 'Corrupt/truncated episode detected (notify only)', trigger } });
     }
   }
 
