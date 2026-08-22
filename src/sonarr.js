@@ -253,3 +253,21 @@ export async function checkSeasonEndAndPreload(seriesId, season, episode, preloa
 }
 
 function pad(n) { return String(n).padStart(2, '0'); }
+
+export async function getEpisodeFile(fileId) {
+  if (!fileId) return null;
+  return sonarrReq('GET', `/episodefile/${fileId}`);
+}
+
+export async function deleteEpisodeFile(fileId) {
+  if (!fileId) return;
+  return sonarrReq('DELETE', `/episodefile/${fileId}`);
+}
+
+export async function searchEpisode(episodeId) {
+  if (!episodeId) return;
+  return sonarrReq('POST', '/command', {
+    name: 'EpisodeSearch',
+    episodeIds: [episodeId],
+  });
+}
