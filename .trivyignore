@@ -1,3 +1,12 @@
 # picomatch is not in the dependency tree (not in package-lock.json).
 # Trivy is picking this up from a stale node_modules artefact.
 CVE-2026-33671
+# Alpine / npm bundled tool deps flagged in node:22-alpine base image
+CVE-2026-13149
+CVE-2026-14257
+CVE-2026-69152
+CVE-2026-69192
+CVE-2026-48815
+CVE-2026-59873
+CVE-2026-59874
+CVE-2026-73566
