@@ -1,5 +1,6 @@
 import { env } from './config.js';
-import { getSetting } from './db.js';
+import { getSetting, isEpisodeFileVerified, markEpisodeFileVerified, clearVerifiedFile } from './db.js';
+import { resolveLocalPath, probeMediaFile, evaluateIntegrity } from './prober.js';
 
 async function sonarrReq(method, path, body) {
   const url = env.sonarrUrl + '/api/v3' + path;
@@ -113,9 +114,114 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
   const future  = upcoming.filter(e => !e.hasFile && e.airDateUtc && new Date(e.airDateUtc).getTime() > now);
   const missing = upcoming.filter(e => !e.hasFile && (!e.airDateUtc || new Date(e.airDateUtc).getTime() <= now));
 
-  // On disk — leave completely alone, don't touch monitored status
+  // On disk — check integrity if enabled, otherwise leave alone
+  const integrityMode = getSetting('integrity_check_mode') || 'auto_remediate';
+  const tolerancePercent = parseInt(getSetting('runtime_tolerance_percent') || '80', 10);
+  const probeTailSeconds = parseInt(getSetting('probe_tail_seconds') || '30', 10);
+  const sonarrPrefix = getSetting('sonarr_path_prefix') || '/data/TV';
+  const localPrefix = getSetting('local_path_prefix') || '/tv';
+
   for (const ep of onDisk) {
-    actions.push({ episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber, action: 'skipped_on_disk' });
+    if (integrityMode === 'disabled' || !ep.episodeFileId) {
+      actions.push({ episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber, action: 'skipped_on_disk' });
+      continue;
+    }
+
+    // Check DB cache
+    const cached = isEpisodeFileVerified(ep.episodeFileId);
+    if (cached && cached.status === 'valid') {
+      actions.push({ episodeId: ep.id, season: ep.seasonNumber, episode: ep.episodeNumber, action: 'skipped_on_disk', details: 'Verified clean (cached)' });
+      continue;
+    }
+
+    // Fetch episode file metadata from Sonarr
+    let epFile = null;
+    try {
+      epFile = await getEpisodeFile(ep.episodeFileId);
+    } catch (err) {
+      console.warn(`[sonarr] Could not fetch episode file ${ep.episodeFileId}:`, err.message);
+    }
+
+    // Determine expected runtime from episode or series (minutes to seconds)
+    const expectedMinutes = ep.runtime || (epFile && epFile.mediaInfo && epFile.mediaInfo.runTime) || null;
+    const expectedRuntimeSec = expectedMinutes ? expectedMinutes * 60 : null;
+
+    let probeResult = null;
+    if (epFile && epFile.path) {
+      const localPath = resolveLocalPath(epFile.path, sonarrPrefix, localPrefix);
+      probeResult = await probeMediaFile(localPath, {
+        expectedRuntimeSec,
+        tolerancePercent,
+        tailSeconds: probeTailSeconds,
+      });
+    }
+
+    // Fallback evaluation if local file unmounted/unreadable but Sonarr mediaInfo is present
+    if ((!probeResult || !probeResult.available) && epFile && epFile.mediaInfo && epFile.mediaInfo.runTime) {
+      // mediaInfo.runTime from Sonarr is in minutes or string "HH:MM:SS"
+      let sonarrSec = 0;
+      if (typeof epFile.mediaInfo.runTime === 'number') {
+        sonarrSec = epFile.mediaInfo.runTime * 60;
+      } else if (typeof epFile.mediaInfo.runTime === 'string') {
+        const parts = epFile.mediaInfo.runTime.split(':').map(Number);
+        if (parts.length === 3) sonarrSec = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        else if (parts.length === 2) sonarrSec = parts[0] * 60 + parts[1];
+      }
+      const evalRes = evaluateIntegrity({
+        actualDurationSec: sonarrSec,
+        expectedRuntimeSec,
+        tolerancePercent,
+        streamError: null,
+      });
+      probeResult = { available: false, actualDurationSec: sonarrSec, ...evalRes, details: (evalRes.details || '') + ' (via Sonarr metadata fallback)' };
+    }
+
+    if (probeResult && !probeResult.valid) {
+      console.warn(`[integrity] Bad episode detected S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${probeResult.reason} - ${probeResult.details}`);
+      
+      if (integrityMode === 'auto_remediate') {
+        let deleteStatus = 'ok';
+        let searchStatus = 'ok';
+        try {
+          await deleteEpisodeFile(ep.episodeFileId);
+          await searchEpisode(ep.id);
+          clearVerifiedFile(ep.episodeFileId);
+        } catch (err) {
+          deleteStatus = 'failed: ' + err.message;
+          console.error('[integrity] Auto-remediation failed:', err.message);
+        }
+
+        actions.push({
+          episodeId: ep.id,
+          season: ep.seasonNumber,
+          episode: ep.episodeNumber,
+          action: 'remediated_corrupt_file',
+          details: `${probeResult.reason}: ${probeResult.details}. Deleted and queued re-search.`,
+          apiStatus: deleteStatus,
+        });
+      } else {
+        // notify_only
+        markEpisodeFileVerified(ep.episodeFileId, 'corrupt', { runtime: probeResult.actualDurationSec, details: probeResult.details });
+        actions.push({
+          episodeId: ep.id,
+          season: ep.seasonNumber,
+          episode: ep.episodeNumber,
+          action: 'corrupt_file_detected_notify_only',
+          details: `${probeResult.reason}: ${probeResult.details}`,
+        });
+      }
+    } else {
+      // Valid file
+      const runtimeSec = probeResult ? probeResult.actualDurationSec : null;
+      markEpisodeFileVerified(ep.episodeFileId, 'valid', { runtime: runtimeSec, details: probeResult?.details || 'OK' });
+      actions.push({
+        episodeId: ep.id,
+        season: ep.seasonNumber,
+        episode: ep.episodeNumber,
+        action: 'skipped_on_disk',
+        details: probeResult?.details || 'On disk',
+      });
+    }
   }
 
   // Future episodes not on disk — set monitored only so Sonarr auto-grabs on release
