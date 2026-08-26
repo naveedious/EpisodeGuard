@@ -142,7 +142,7 @@ router.post('/settings', (req, res) => {
   const allowed = ['poll_interval_seconds','lookahead_episodes','season_end_buffer',
                    'log_retention_days','apprise_url','apprise_events','webhook_enabled',
                    'webhook_secret','session_max_age_hours','integrity_check_mode',
-                   'runtime_tolerance_percent','probe_tail_seconds','sonarr_path_prefix','local_path_prefix'];
+                   'runtime_tolerance_percent','probe_tail_seconds','sonarr_path_prefix','local_path_prefix','integrity_log_checks'];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -160,6 +160,10 @@ router.post('/settings', (req, res) => {
 
   if (updates.webhook_enabled !== undefined) {
     updates.webhook_enabled = (updates.webhook_enabled === '1' || updates.webhook_enabled === true || updates.webhook_enabled === 'true') ? '1' : '0';
+  }
+
+  if (updates.integrity_log_checks !== undefined) {
+    updates.integrity_log_checks = (updates.integrity_log_checks === '1' || updates.integrity_log_checks === true || updates.integrity_log_checks === 'true') ? '1' : '0';
   }
 
   setSettings(updates);
