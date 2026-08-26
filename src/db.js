@@ -90,6 +90,7 @@ export const SETTING_DEFAULTS = {
   probe_tail_seconds:         '30',
   sonarr_path_prefix:         '/data/TV',
   local_path_prefix:          '/tv',
+  integrity_log_checks:       '0',
 };
 
 export function getSetting(key) {

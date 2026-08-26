@@ -28,6 +28,7 @@ test('db schema includes verified_files and new default settings', (t) => {
   assert.equal(getSetting('probe_tail_seconds'), '30');
   assert.equal(getSetting('sonarr_path_prefix'), '/data/TV');
   assert.equal(getSetting('local_path_prefix'), '/tv');
+  assert.equal(getSetting('integrity_log_checks'), '0');
 
   // Verify verified_files cache operations
   assert.equal(isEpisodeFileVerified(12345), null);

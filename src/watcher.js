@@ -229,6 +229,9 @@ async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set())
     } else if (a.action === 'corrupt_file_detected_notify_only') {
       logEvent({ event_type: 'episode_corrupt', show_title: showTitle, season: epSeason, episode: epEpisode,
         details: { message: a.details || 'Corrupt/truncated episode detected (notify only)', trigger } });
+    } else if (a.action === 'integrity_checked') {
+      logEvent({ event_type: 'integrity_checked', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: a.details || 'Integrity verified clean', trigger } });
     }
   }
 

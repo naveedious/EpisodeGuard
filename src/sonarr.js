@@ -120,6 +120,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
   const probeTailSeconds = parseInt(getSetting('probe_tail_seconds') || '30', 10);
   const sonarrPrefix = getSetting('sonarr_path_prefix') || '/data/TV';
   const localPrefix = getSetting('local_path_prefix') || '/tv';
+  const logIntegrityChecks = getSetting('integrity_log_checks') === '1';
 
   for (const ep of onDisk) {
     if (integrityMode === 'disabled' || !ep.episodeFileId) {
@@ -177,7 +178,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
     }
 
     if (probeResult && !probeResult.valid) {
-      console.warn(`[integrity] Bad episode detected S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${probeResult.reason} - ${probeResult.details}`);
+      console.error(`[integrity] ERROR: Corrupt episode detected S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${probeResult.reason} - ${probeResult.details}`);
       
       if (integrityMode === 'auto_remediate') {
         let deleteStatus = 'ok';
@@ -214,12 +215,13 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
       // Valid file
       const runtimeSec = probeResult ? probeResult.actualDurationSec : null;
       markEpisodeFileVerified(ep.episodeFileId, 'valid', { runtime: runtimeSec, details: probeResult?.details || 'OK' });
+      console.log(`[integrity] Episode verified clean: S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)} (${probeResult?.details || 'OK'})`);
       actions.push({
         episodeId: ep.id,
         season: ep.seasonNumber,
         episode: ep.episodeNumber,
-        action: 'skipped_on_disk',
-        details: probeResult?.details || 'On disk',
+        action: logIntegrityChecks ? 'integrity_checked' : 'skipped_on_disk',
+        details: probeResult?.details || 'On disk (verified clean)',
       });
     }
   }

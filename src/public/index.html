@@ -48,6 +48,7 @@
     .badge-webhook_received{background:rgba(34,197,94,.15);color:var(--green);}
     .badge-episode_remediated{background:rgba(239,68,68,.2);color:var(--red);font-weight:700;}
     .badge-episode_corrupt{background:rgba(249,115,22,.2);color:var(--orange);font-weight:700;}
+    .badge-integrity_checked{background:rgba(59,130,246,.15);color:var(--blue);}
     .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .activity table{width:100%;border-collapse:collapse;}
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
@@ -297,6 +298,13 @@
               <div class="hint">Path where media is mounted inside this container (e.g. /tv).</div>
               <input type="text" id="s-local-prefix" placeholder="/tv">
             </div>
+            <div class="field">
+              <div class="toggle-row">
+                <span class="toggle-label">Log All Integrity Checks</span>
+                <label class="toggle"><input type="checkbox" id="s-integrity-logging"><span class="toggle-slider"></span></label>
+              </div>
+              <div class="hint" style="margin-top:8px">When enabled, records an activity log entry every time a file is probed and verified, even when clean. Corrupt files are always logged regardless of this setting.</div>
+            </div>
             <div class="field" style="margin-top:14px;">
               <label>Test Specific Path (Optional)</label>
               <div class="hint">Leave empty to auto-test a real episode from Sonarr, or enter a custom path.</div>
@@ -476,6 +484,7 @@
     episode_confirmed:'Confirmed', episode_grabbed:'Grabbed', episode_monitored:'Monitored',
     episode_skipped:'On Disk', season_monitored:'Season Monitored', error:'Error',
     webhook_received:'Webhook', episode_remediated:'Remediated', episode_corrupt:'Corrupt File',
+    integrity_checked:'Integrity OK',
   };
 
   function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -736,15 +745,21 @@
   async function loadSettings() {
     const res = await fetch('/api/settings');
     const s = await res.json();
-    document.getElementById('s-poll').value         = s.poll_interval_seconds;
-    document.getElementById('s-lookahead').value    = s.lookahead_episodes;
-    document.getElementById('s-buffer').value       = s.season_end_buffer;
-    document.getElementById('s-retention').value    = s.log_retention_days;
-    document.getElementById('s-apprise-url').value  = s.apprise_url??'';
-    document.getElementById('s-apprise-events').value = s.apprise_events??'episode_grabbed';
-    document.getElementById('s-webhook').checked   = s.webhook_enabled==='1';
-    document.getElementById('s-webhook-secret').value = '';
-    document.getElementById('s-session-hours').value  = s.session_max_age_hours??'24';
+    document.getElementById('s-poll').value               = s.poll_interval_seconds;
+    document.getElementById('s-lookahead').value          = s.lookahead_episodes;
+    document.getElementById('s-buffer').value             = s.season_end_buffer;
+    document.getElementById('s-retention').value          = s.log_retention_days;
+    document.getElementById('s-apprise-url').value        = s.apprise_url??'';
+    document.getElementById('s-apprise-events').value      = s.apprise_events??'episode_grabbed';
+    document.getElementById('s-webhook').checked         = s.webhook_enabled==='1';
+    document.getElementById('s-webhook-secret').value     = '';
+    document.getElementById('s-session-hours').value        = s.session_max_age_hours??'24';
+    document.getElementById('s-integrity-mode').value     = s.integrity_check_mode??'auto_remediate';
+    document.getElementById('s-runtime-tolerance').value  = s.runtime_tolerance_percent??'80';
+    document.getElementById('s-tail-seconds').value       = s.probe_tail_seconds??'30';
+    document.getElementById('s-sonarr-prefix').value      = s.sonarr_path_prefix??'/data/TV';
+    document.getElementById('s-local-prefix').value       = s.local_path_prefix??'/tv';
+    document.getElementById('s-integrity-logging').checked = s.integrity_log_checks==='1';
     document.getElementById('webhook-url-display').textContent = location.origin+'/api/webhook';
     loadProviders();
     loadAllowedUsers();
@@ -817,14 +832,20 @@
     const btn = (activePane && activePane.querySelector('.save-btn')) || document.getElementById('save-btn');
     btn.disabled = true;
     const payload = {
-      poll_interval_seconds: document.getElementById('s-poll').value,
-      lookahead_episodes:    document.getElementById('s-lookahead').value,
-      season_end_buffer:     document.getElementById('s-buffer').value,
-      log_retention_days:    document.getElementById('s-retention').value,
-      apprise_url:           document.getElementById('s-apprise-url').value,
-      apprise_events:        document.getElementById('s-apprise-events').value,
-      webhook_enabled:       document.getElementById('s-webhook').checked?'1':'0',
-      session_max_age_hours: document.getElementById('s-session-hours').value,
+      poll_interval_seconds:     document.getElementById('s-poll').value,
+      lookahead_episodes:        document.getElementById('s-lookahead').value,
+      season_end_buffer:         document.getElementById('s-buffer').value,
+      log_retention_days:        document.getElementById('s-retention').value,
+      apprise_url:               document.getElementById('s-apprise-url').value,
+      apprise_events:            document.getElementById('s-apprise-events').value,
+      webhook_enabled:           document.getElementById('s-webhook').checked?'1':'0',
+      session_max_age_hours:     document.getElementById('s-session-hours').value,
+      integrity_check_mode:      document.getElementById('s-integrity-mode').value,
+      runtime_tolerance_percent: document.getElementById('s-runtime-tolerance').value,
+      probe_tail_seconds:        document.getElementById('s-tail-seconds').value,
+      sonarr_path_prefix:        document.getElementById('s-sonarr-prefix').value,
+      local_path_prefix:         document.getElementById('s-local-prefix').value,
+      integrity_log_checks:      document.getElementById('s-integrity-logging').checked?'1':'0',
     };
     const secret = document.getElementById('s-webhook-secret').value;
     if (secret) payload.webhook_secret = secret;
