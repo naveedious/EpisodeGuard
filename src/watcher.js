@@ -198,7 +198,7 @@ async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set())
 
   // 1. Ensure upcoming episodes
   console.log('[watcher] Checking upcoming for ' + label);
-  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded, queuedEpisodeIds);
+  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded, queuedEpisodeIds, series.title);
 
   // Log one row per upcoming episode action
   for (const a of result.actions) {
