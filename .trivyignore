@@ -10,3 +10,7 @@ CVE-2026-48815
 CVE-2026-59873
 CVE-2026-59874
 CVE-2026-73566
+# Alpine 3.24 base image: openssl libcrypto3, fixed in alpine 3.5.8-r0 (absorbed on next base image bump)
+CVE-2026-14456
+# npm bundled pacote in node:22-alpine, fixed in npm 21.5.1 (not an app dependency)
+CVE-2026-9496
