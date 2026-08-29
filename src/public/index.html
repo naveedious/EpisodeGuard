@@ -49,6 +49,7 @@
     .badge-episode_remediated{background:rgba(239,68,68,.2);color:var(--red);font-weight:700;}
     .badge-episode_corrupt{background:rgba(249,115,22,.2);color:var(--orange);font-weight:700;}
     .badge-integrity_checked{background:rgba(59,130,246,.15);color:var(--blue);}
+    .badge-integrity_verifying{background:rgba(59,130,246,.08);color:var(--blue);opacity:.75;}
     .activity{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
     .activity table{width:100%;border-collapse:collapse;}
     .activity th{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:10px 16px;text-align:left;border-bottom:1px solid var(--border);}
@@ -199,6 +200,9 @@
               <option value="episode_grabbed">Grabbed</option>
               <option value="episode_monitored">Monitored</option>
               <option value="episode_skipped">Skipped</option>
+              <option value="integrity_verifying">Verifying</option>
+              <option value="integrity_checked">Integrity OK</option>
+              <option value="episode_corrupt">Corrupt File</option>
               <option value="season_monitored">Season Monitored</option>
               <option value="error">Error</option>
             </select>
@@ -484,7 +488,7 @@
     episode_confirmed:'Confirmed', episode_grabbed:'Grabbed', episode_monitored:'Monitored',
     episode_skipped:'On Disk', season_monitored:'Season Monitored', error:'Error',
     webhook_received:'Webhook', episode_remediated:'Remediated', episode_corrupt:'Corrupt File',
-    integrity_checked:'Integrity OK',
+    integrity_checked:'Integrity OK', integrity_verifying:'Verifying…',
   };
 
   function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
