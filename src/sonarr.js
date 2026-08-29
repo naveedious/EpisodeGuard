@@ -22,7 +22,9 @@ async function sonarrReq(method, path, body) {
     throw new Error('Sonarr ' + method + ' ' + path + ' -> HTTP ' + res.status + ': ' + text.slice(0, 200));
   }
   if (res.status === 204) return null;
-  return res.json();
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
 }
 
 const QUEUE_SKIP_STATUSES = new Set(['downloading', 'queued', 'delay', 'completed']);
