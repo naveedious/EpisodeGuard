@@ -139,3 +139,25 @@ test('corrupt replacements are blocklisted, attempts increment, exhaust at cap, 
     assert.equal(sonarrMockState.calls.filter(c => c.method === 'DELETE' && /episodefile/.test(c.path)).length, 0);
   } finally { resetRemediation(42); restore(); }
 });
+
+test('startRemediation: loop entry with downloads dir; delete-first fallback without it', async () => {
+  const restore = installSonarrMock();
+  try {
+    setupPathMaps({ dlDir: fs.mkdtempSync(path.join(os.tmpdir(), 'eg-dl3-')),
+      mediaDir: fs.mkdtempSync(path.join(os.tmpdir(), 'eg-media3-')) });
+    sonarrMockState.episode = { id: 44, hasFile: true, episodeFileId: 9 };
+    const row = await startRemediation({ episodeId: 44, seriesId: 1, showTitle: 'Sunny', season: 12, episode: 5,
+      oldFileId: 9, reason: 'corrupt_stream: boom' });
+    assert.equal(row.state, 'queued');
+
+    // fallback: no downloads dir -> old file deleted immediately + search, returns null
+    const prevDl = process.env.DOWNLOADS_DIR;
+    delete process.env.DOWNLOADS_DIR;
+    sonarrMockState.calls = [];
+    const row2 = await startRemediation({ episodeId: 45, seriesId: 1, showTitle: 'Sunny', season: 12, episode: 6,
+      oldFileId: 10, reason: 'corrupt_stream: boom' });
+    assert.equal(row2, null);
+    assert.ok(sonarrMockState.calls.some(c => c.method === 'DELETE' && /episodefile\/10/.test(c.path)));
+    process.env.DOWNLOADS_DIR = prevDl;
+  } finally { resetRemediation(44); resetRemediation(45); restore(); }
+});

@@ -181,6 +181,14 @@ async function runWatcher() {
   for (const key of processed.keys()) {
     if (!activeSessions.has(key)) processed.delete(key);
   }
+
+  // Drive any active remediation loops
+  try {
+    const { tickRemediations } = await import('./remediation.js');
+    await tickRemediations();
+  } catch (err) {
+    console.error('[watcher] Remediation tick error:', err.message);
+  }
 }
 
 async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set()) {
@@ -198,7 +206,7 @@ async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set())
 
   // 1. Ensure upcoming episodes
   console.log('[watcher] Checking upcoming for ' + label);
-  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded, queuedEpisodeIds);
+  const result = await ensureUpcomingEpisodes(series.id, season, episode, preloaded, queuedEpisodeIds, series);
 
   // Log one row per upcoming episode action
   for (const a of result.actions) {
@@ -229,6 +237,12 @@ async function processEpisode(ep, series, trigger, queuedEpisodeIds = new Set())
     } else if (a.action === 'corrupt_file_detected_notify_only') {
       logEvent({ event_type: 'episode_corrupt', show_title: showTitle, season: epSeason, episode: epEpisode,
         details: { message: a.details || 'Corrupt/truncated episode detected (notify only)', trigger } });
+    } else if (a.action === 'remediation_started') {
+      logEvent({ event_type: 'remediation_started', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: a.details || 'Remediation loop started', trigger } });
+    } else if (a.action === 'integrity_confirmed_clean') {
+      logEvent({ event_type: 'integrity_confirmed_clean', show_title: showTitle, season: epSeason, episode: epEpisode,
+        details: { message: a.details || 'Full decode confirmed the file is clean', trigger } });
     } else if (a.action === 'integrity_checked') {
       logEvent({ event_type: 'integrity_checked', show_title: showTitle, season: epSeason, episode: epEpisode,
         details: { message: a.details || 'Integrity verified clean', trigger } });
