@@ -58,6 +58,7 @@ One function, used for both the confirm pass and the replacement verify:
 - `ffmpeg -i <file> -f null -` over the entire file, audio and video streams, error log captured.
 - Timeout scaled to file length (default: expected duration + 5 minutes, capped).
 - Result recorded in the verification cache keyed by file path + size + mtime, so a queued download is never decoded twice.
+- Extraction stability: with unpackerr in the pipeline, a queue item can flip to "completed" while the extraction is still writing. Before decoding, require the file's size to be unchanged across two polls spaced a few seconds apart; until then keep polling.
 
 ### Delete-after guarantee
 
@@ -85,7 +86,7 @@ New env vars, all with sane defaults so the feature works without touching compo
 
 | Var | Default | Purpose |
 |---|---|---|
-| `DOWNLOADS_DIR` | unset | Read-only mount of the download client's completed folder; presence enables queue-file verification |
+| `DOWNLOADS_DIR` | unset | Read-only mount of the downloads root (the extracted location Sonarr imports from, including anything unpackerr writes); presence enables queue-file verification |
 | `REMEDIATION_MAX_ATTEMPTS` | `3` | Distinct releases tried before exhausted |
 | `REMEDIATION_QUEUE_TIMEOUT_HOURS` | `6` | Stuck queue item treated as failed |
 
@@ -99,10 +100,10 @@ EpisodeGuard already mounts `/tv:ro`. Deployment adds one line so queued downloa
 volumes:
   - ./data:/data
   - /data/TV:/tv:ro
-  - /data/Downloads:/downloads:ro   # completed folder of the download client
+  - /data/Downloads:/downloads:ro   # downloads root incl. unpackerr output — NOT the /tv destination
 ```
 
-`DOWNLOADS_DIR=/downloads` then points the verifier at the right place. If Sonarr's queue item gives an absolute path that starts with a different mount point, the code maps the `outputPath` prefix onto this mount rather than requiring identical paths.
+`DOWNLOADS_DIR=/downloads` then points the verifier at the right place: the probe target is always the Sonarr queue item's `outputPath`, which with unpackerr is the extracted folder inside the downloads root — never the final `/tv` destination (the swap has not happened yet) and never the raw archive (Sonarr only marks the item completed after unpackerr finishes). If the queue item's absolute path starts with a different mount point, the code maps the `outputPath` prefix onto this mount rather than requiring identical paths.
 
 ### UI and notifications
 
