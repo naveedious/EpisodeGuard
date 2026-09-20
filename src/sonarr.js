@@ -379,3 +379,27 @@ export async function searchEpisode(episodeId) {
     episodeIds: [episodeId],
   });
 }
+
+// --- Remediation loop helpers ---
+
+export async function getQueueRecords() {
+  const data = await sonarrReq('GET', '/queue?pageSize=500&includeEpisode=true');
+  return data?.records ?? (Array.isArray(data) ? data : []);
+}
+
+export async function deleteQueueItem(queueId, { removeFromClient = true, blocklist = true } = {}) {
+  const q = `removeFromClient=${removeFromClient}&blocklist=${blocklist}`;
+  return sonarrReq('DELETE', `/queue/${queueId}?${q}`);
+}
+
+export async function manualImportEpisode({ outputPath, episodeId }) {
+  return sonarrReq('POST', '/command', {
+    name: 'DownloadedEpisodesScan',
+    path: outputPath,
+    episodeIds: [episodeId],
+  });
+}
+
+export async function getEpisodeDetail(episodeId) {
+  return sonarrReq('GET', `/episode/${episodeId}`);
+}
