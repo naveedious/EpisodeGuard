@@ -136,6 +136,17 @@ volumes:
 - Integration (mock Sonarr + a real ffmpeg run on a sample broken MP4): confirm pass rejects the broken file, accepts a healthy one, swap only happens after verify passes.
 - Manual: run against the live Sunny/Chicago P.D. backlog once implemented, watch one full loop end to end.
 
+### Loop prevention
+
+Four invariants guarantee every path through the flow terminates:
+
+1. **Attempt cap with blocklist**: max 3 attempts, each blocked release can never be grabbed again, so the attempt sequence is strictly decreasing in candidates.
+2. **Terminal states are sticky**: `exhausted` never auto-retries; clearing it requires a manual reset from the UI. `swapped` is terminal — later lookahead scans may re-flag the file, but the confirm pass full-decodes it, it passes (it was verified twice), and nothing re-enters the loop.
+3. **Every waiting state has a time bound**: `verifying` queue timeout (default 6h) and a `searching` no-results timeout (default 24h). An episode with no eligible releases anywhere ends up `exhausted`, not stuck in `searching` forever.
+4. **Post-import failure never loops**: a corrupt file after the media-management move is notify-only, full stop. And a global concurrency cap of 1 concurrent remediation keeps a batch of corrupt episodes from spawning parallel loops hammering Sonarr and ffmpeg; the rest wait in line.
+
+False-corrupt guard: the confirm pass retries a decode once on timeout or IO-class errors before declaring a file corrupt, so a flaky disk or a sleeping drive cannot burn attempts on a healthy file.
+
 ## Out of scope
 
 - Library-wide audits.
