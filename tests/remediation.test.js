@@ -161,3 +161,10 @@ test('startRemediation: loop entry with downloads dir; delete-first fallback wit
     process.env.DOWNLOADS_DIR = prevDl;
   } finally { resetRemediation(44); resetRemediation(45); restore(); }
 });
+
+test('resetRemediation clears an exhausted row', async () => {
+  createRemediation({ seriesId: 1, episodeId: 99, showTitle: 'S', season: 1, episode: 2, oldFileId: 5, reason: 'x' });
+  setRemediationState(99, 'exhausted', { attempts: 3 });
+  resetRemediation(99);
+  assert.equal(getRemediation(99), null);
+});

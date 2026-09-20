@@ -15,7 +15,10 @@ export async function sendAppriseNotification(eventType, { showTitle, season, ep
 
   const enabledRaw = getSetting('apprise_events') ?? 'episode_grabbed';
   const enabled = enabledRaw.split(',').map(s => s.trim()).filter(Boolean);
-  if (!enabled.includes(eventType)) return;
+  // 'remediation' whitelist entry matches any remediation_* event type
+  const allowed = enabled.includes(eventType) ||
+    (eventType.startsWith('remediation') && enabled.includes('remediation'));
+  if (!allowed) return;
 
   const ep = epLabel(season, episode);
   const show = showTitle ?? '';
@@ -27,6 +30,11 @@ export async function sendAppriseNotification(eventType, { showTitle, season, ep
     episode_remediated: `Episode Guard — Bad File Remediated`,
     episode_corrupt:    `Episode Guard — Corrupt File Warning`,
     error:              `Episode Guard — Error`,
+    remediation_started:        `Episode Guard — Corrupt Episode: Replacement Search Started`,
+    remediation_attempt:        `Episode Guard — Corrupt Episode: Replacement Failed Validation`,
+    remediation_swapped:        `Episode Guard — Corrupt Episode: Replaced With Verified Copy`,
+    remediation_exhausted:      `Episode Guard — Corrupt Episode: Gave Up After Max Releases`,
+    remediation_fallback:       `Episode Guard — Corrupt Episode: Delete-First Fallback Used`,
   };
 
   const bodies = {
