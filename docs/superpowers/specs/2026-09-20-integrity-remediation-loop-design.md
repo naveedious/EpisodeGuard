@@ -45,9 +45,13 @@ flagged by Tier 1 or Tier 2
   -> SEARCH: trigger a Sonarr episode search, keep the old file
   -> VERIFY: poll the Sonarr queue; when the download for this episode
              reaches a completed state, full-decode the queued file
-       clean -> SWAP: delete the old episodeFile in Sonarr, let Sonarr
-                      import the replacement, re-verify from cache
+       clean -> SWAP: force-import via Sonarr manual import (Sonarr's
+                      media management moves it to the final folder,
+                      replacing the old file in one step)
        corrupt -> remove the queue item with blocklist=true, retry
+  -> POST-IMPORT: full-decode the file now in the final /tv folder
+       clean -> swapped, cache the result
+       corrupt -> notify (move should be byte-identical; treat as anomaly)
   -> after 3 blocked releases: EXHAUSTED, notify-only summary
 ```
 
@@ -62,7 +66,15 @@ One function, used for both the confirm pass and the replacement verify:
 
 ### Delete-after guarantee
 
-The old `episodeFile` is deleted only after a verified clean replacement exists. Enforced in one place (the swap step). Every other code path that can remove files today keeps existing behaviour, but the remediation loop itself never deletes first.
+Sonarr's auto-import refuses a same-quality download while the episode already has a file ("not an upgrade"), so the loop never relies on it. The swap uses Sonarr's manual import API (`DownloadedEpisodesScan` on the verified output path, or `manualimport` with the episode ID) — Sonarr's media management then moves the file into the final folder and replaces the old file as one operation.
+
+Fallback: if Sonarr still refuses the same-quality replacement on manual import, the loop deletes the old `episodeFile` first and imports the verified queued file immediately after. That leaves a seconds-long gap, but only ever after the replacement has passed the full decode, so no verified-good file is at risk.
+
+The old file is never removed before a verified clean replacement exists. Enforced in one place (the swap step); every other path keeps existing behaviour.
+
+### Post-import verification
+
+After Sonarr's media management move, the final file in `/tv` is full-decoded again before the episode is marked `swapped`. The move should be byte-identical (copy/hardlink), so this is belt-and-braces against anything odd in the pipeline, not a corruption filter. A failure here is treated as an anomaly: notify-only, do not loop.
 
 ### Release dedup
 
@@ -70,7 +82,7 @@ Each failed attempt adds a Sonarr blocklist entry (`removeFromClient: true, bloc
 
 ### State machine (SQLite, per episode)
 
-`suspect -> confirmed -> searching -> verifying -> swapped | exhausted`
+`suspect -> confirmed -> searching -> verifying -> importing -> swapped | exhausted`
 
 - Rows survive container restarts; the watcher resumes polling on boot.
 - Any queue item stuck in a non-completed state longer than `REMEDIATION_QUEUE_TIMEOUT_HOURS` (default: 6) counts as a failed attempt: remove with blocklist, retry.
