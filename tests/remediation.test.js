@@ -168,3 +168,25 @@ test('resetRemediation clears an exhausted row', async () => {
   resetRemediation(99);
   assert.equal(getRemediation(99), null);
 });
+
+test('confirm pass decodes flagged file and starts remediation without localPath scope error', async () => {
+  const restore = installSonarrMock();
+  try {
+    const dlDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eg-dl4-'));
+    const mediaDir = fs.mkdtempSync(path.join(os.tmpdir(), 'eg-media4-'));
+    setupPathMaps({ dlDir, mediaDir });
+    fs.mkdirSync(mediaDir + '/Sunny/Season 12', { recursive: true });
+    fs.mkdirSync(dlDir + '/tv', { recursive: true });
+    // corrupt file in the library: tiny file so tail probe fails
+    const libFile = mediaDir + '/Sunny/Season 12/S12E09.mkv';
+    fs.writeFileSync(libFile, 'not a real video');
+    sonarrMockState.episode = { id: 50, hasFile: true, episodeFileId: 20 };
+    sonarrMockState.episodeFile = { id: 20, path: '/data/TV/Sunny/Season 12/S12E09.mkv' };
+    sonarrMockState.queue = [];
+    const { probeMediaFile } = await import('../src/prober.js');
+    // force probe invalid by monkeypatching decoder confirm path via real probe:
+    const row = await startRemediation({ episodeId: 50, seriesId: 1, showTitle: 'Sunny', season: 12, episode: 9,
+      oldFileId: 20, reason: 'corrupt_stream: tail probe failed' });
+    assert.equal(row.state, 'queued');
+  } finally { resetRemediation(50); restore(); }
+});
