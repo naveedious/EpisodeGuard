@@ -165,8 +165,9 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
     const expectedRuntimeSec = expectedMinutes ? expectedMinutes * 60 : null;
 
     let probeResult = null;
+    let localPath = null;
     if (epFile && epFile.path) {
-      const localPath = resolveLocalPath(epFile.path, sonarrPrefix, localPrefix);
+      localPath = resolveLocalPath(epFile.path, sonarrPrefix, localPrefix);
       probeResult = await probeMediaFile(localPath, {
         expectedRuntimeSec,
         tolerancePercent,
@@ -199,8 +200,12 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
       
       if (integrityMode === 'auto_remediate') {
         // Confirm pass: full decode before anything is deleted (spec).
+        // If the file is not locally mounted (metadata-only fallback), skip the
+        // decode confirm and go straight to remediation.
         const { fullDecode } = await import('./decoder.js');
-        const confirm = await fullDecode(localPath, { timeoutMs: 300000 });
+        const confirm = localPath
+          ? await fullDecode(localPath, { timeoutMs: 300000 })
+          : { pass: false, error: 'local file not mounted - decode confirm skipped' };
         if (confirm.pass) {
           // Tier 1/2 was a false positive (e.g. -ss tail artifact).
           markEpisodeFileVerified(ep.episodeFileId, 'valid', { runtime: probeResult.actualDurationSec, details: 'confirmed clean via full decode' });
