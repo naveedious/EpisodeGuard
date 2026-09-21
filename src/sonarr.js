@@ -1,5 +1,5 @@
 import { env } from './config.js';
-import { getSetting, isEpisodeFileVerified, markEpisodeFileVerified, clearVerifiedFile } from './db.js';
+import { getSetting, logEvent, isEpisodeFileVerified, markEpisodeFileVerified, clearVerifiedFile } from './db.js';
 import { resolveLocalPath, probeMediaFile, evaluateIntegrity } from './prober.js';
 
 async function sonarrReq(method, path, body) {
@@ -22,7 +22,9 @@ async function sonarrReq(method, path, body) {
     throw new Error('Sonarr ' + method + ' ' + path + ' -> HTTP ' + res.status + ': ' + text.slice(0, 200));
   }
   if (res.status === 204) return null;
-  return res.json();
+  const text = await res.text();
+  if (!text) return null;
+  return JSON.parse(text);
 }
 
 const QUEUE_SKIP_STATUSES = new Set(['downloading', 'queued', 'delay', 'completed']);
@@ -88,7 +90,7 @@ export async function getTwoSeasonEpisodes(seriesId, season) {
 }
 
 
-export async function ensureUpcomingEpisodes(seriesId, season, episode, preloaded, queuedEpisodeIds = new Set(), series = null) {
+export async function ensureUpcomingEpisodes(seriesId, season, episode, preloaded, queuedEpisodeIds = new Set(), seriesTitle = null) {
   const lookahead = parseInt(getSetting('lookahead_episodes'), 10);
   const allEps = preloaded
     ? [...preloaded.current, ...preloaded.next]
@@ -142,6 +144,21 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
     } catch (err) {
       console.warn(`[sonarr] Could not fetch episode file ${ep.episodeFileId}:`, err.message);
     }
+
+    const verifyingDetails = {
+      message: 'Verifying file integrity (ffprobe + tail decode)',
+      file: epFile?.path || null,
+    };
+    if (logIntegrityChecks) {
+      logEvent({
+        event_type: 'integrity_verifying',
+        show_title: seriesTitle || null,
+        season: ep.seasonNumber,
+        episode: ep.episodeNumber,
+        details: verifyingDetails,
+      });
+    }
+    console.log(`[integrity] Verifying S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${epFile?.path || '(no file path)'}`);
 
     // Determine expected runtime from episode or series (minutes to seconds)
     const expectedMinutes = ep.runtime || (epFile && epFile.mediaInfo && epFile.mediaInfo.runTime) || null;
@@ -200,7 +217,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
         const { startRemediation } = await import('./remediation.js');
         const row = await startRemediation({
           episodeId: ep.id, seriesId,
-          showTitle: (series && series.title) || '',
+          showTitle: seriesTitle || '',
           season: ep.seasonNumber, episode: ep.episodeNumber,
           oldFileId: ep.episodeFileId,
           reason: `${probeResult.reason}: ${probeResult.details}; confirm decode: ${confirm.error}`,
