@@ -38,7 +38,15 @@ Episode Guard can inspect upcoming episodes already on disk during lookahead che
 ### How it works:
 1. **Tier 1 (Runtime Validation):** Compares physical file duration against expected duration from Sonarr metadata. Flagged if actual duration is below the tolerance threshold (default: `< 80%`).
 2. **Tier 2 (Stream & Tail Probe):** If media storage is mounted, runs `ffprobe` and decodes the final 30 seconds of the video stream via `ffmpeg` to `/dev/null` (`-f null -`) to catch packet corruption and broken EOF.
-3. **Auto-Remediation:** If a bad file is detected and `integrity_check_mode` is set to `Auto-Remediate`, Episode Guard deletes the bad `episodeFile` in Sonarr via API and immediately triggers a replacement search. If set to `Notify Only`, it sends an alert and records the finding without deleting.
+3. **Auto-Remediation (verify before swap):** A flagged file first gets a full-stream
+   decode to confirm it is genuinely corrupt. If confirmed, Episode Guard keeps the
+   current file and asks Sonarr for a replacement. The replacement is full-decoded in
+   the downloads folder before anything is touched; only then is the old file swapped
+   out via Sonarr manual import, and the final file is decoded once more. Failed
+   replacements are blocklisted, up to 3 different releases, then a summary alert.
+   Falls back to the old delete-first behaviour (with a warning) if the downloads
+   folder is not mounted. Exhausted remediations can be cleared via
+   `POST /api/remediation/:episodeId/reset`.
 4. **Verification Cache:** Clean files are cached in SQLite so files are only probed once.
 
 To enable local stream probing, bind-mount your TV media folder read-only in `docker-compose.yml`:
@@ -47,7 +55,10 @@ To enable local stream probing, bind-mount your TV media folder read-only in `do
 volumes:
   - ./data:/data
   - /data/TV:/tv:ro
+  - /data/Downloads:/downloads:ro   # downloads root incl. unpackerr output
 ```
+
+Verify-before-swap needs this mount plus `DOWNLOADS_DIR=/downloads`. Without it, remediation falls back to delete-first.
 
 ## Activity log
 

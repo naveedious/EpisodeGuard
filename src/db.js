@@ -67,6 +67,22 @@ function initSchema(db) {
       checked_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
     );
 
+    CREATE TABLE IF NOT EXISTS remediation_episodes (
+      episode_id    INTEGER PRIMARY KEY,
+      series_id     INTEGER NOT NULL,
+      show_title    TEXT    NOT NULL,
+      season        INTEGER NOT NULL,
+      episode       INTEGER NOT NULL,
+      old_file_id   INTEGER,
+      reason        TEXT,
+      state         TEXT    NOT NULL DEFAULT 'queued'
+                    CHECK (state IN ('queued','searching','verifying','importing','swapped','exhausted')),
+      attempts      INTEGER NOT NULL DEFAULT 0,
+      blocked_releases TEXT NOT NULL DEFAULT '[]',
+      details       TEXT,
+      state_changed_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_activity_ts   ON activity_log(timestamp);
     CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(event_type);
     CREATE INDEX IF NOT EXISTS idx_activity_show ON activity_log(show_title);
@@ -293,4 +309,49 @@ export function markEpisodeFileVerified(fileId, status, { runtime = null, detail
 export function clearVerifiedFile(fileId) {
   if (!fileId) return;
   getDb().prepare('DELETE FROM verified_files WHERE file_id = ?').run(fileId);
+}
+
+// Remediation state machine persistence
+
+export function createRemediation({ seriesId, episodeId, showTitle, season, episode, oldFileId, reason }) {
+  const db = getDb();
+  db.prepare(`INSERT INTO remediation_episodes
+    (episode_id, series_id, show_title, season, episode, old_file_id, reason, state)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'queued')
+    ON CONFLICT(episode_id) DO NOTHING`)
+    .run(episodeId, seriesId, showTitle, season, episode, oldFileId, reason);
+  return getRemediation(episodeId);
+}
+
+export function getRemediation(episodeId) {
+  return getDb().prepare('SELECT * FROM remediation_episodes WHERE episode_id = ?').get(episodeId) || null;
+}
+
+export function setRemediationState(episodeId, state, { details = null, attempts = null, blockedReleases = null } = {}) {
+  const db = getDb();
+  const row = getRemediation(episodeId);
+  if (!row) return;
+  db.prepare(`UPDATE remediation_episodes
+    SET state = ?, state_changed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'),
+        attempts = COALESCE(?, attempts), blocked_releases = COALESCE(?, blocked_releases),
+        details = COALESCE(?, details)
+    WHERE episode_id = ?`)
+    .run(state, attempts, blockedReleases, details, episodeId);
+}
+
+export function getActiveRemediations() {
+  return getDb().prepare(`SELECT * FROM remediation_episodes
+    WHERE state IN ('searching','verifying','importing') ORDER BY rowid`).all();
+}
+
+export function getNextQueuedRemediation() {
+  return getDb().prepare(`SELECT * FROM remediation_episodes WHERE state = 'queued' ORDER BY rowid LIMIT 1`).get() || null;
+}
+
+export function getRemediations() {
+  return getDb().prepare('SELECT * FROM remediation_episodes ORDER BY rowid DESC LIMIT 200').all();
+}
+
+export function resetRemediation(episodeId) {
+  getDb().prepare('DELETE FROM remediation_episodes WHERE episode_id = ?').run(episodeId);
 }

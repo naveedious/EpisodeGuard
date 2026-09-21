@@ -198,25 +198,47 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
       console.error(`[integrity] ERROR: Corrupt episode detected S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${probeResult.reason} - ${probeResult.details}`);
       
       if (integrityMode === 'auto_remediate') {
-        let deleteStatus = 'ok';
-        let searchStatus = 'ok';
-        try {
-          await deleteEpisodeFile(ep.episodeFileId);
-          await searchEpisode(ep.id);
-          clearVerifiedFile(ep.episodeFileId);
-        } catch (err) {
-          deleteStatus = 'failed: ' + err.message;
-          console.error('[integrity] Auto-remediation failed:', err.message);
+        // Confirm pass: full decode before anything is deleted (spec).
+        const { fullDecode } = await import('./decoder.js');
+        const confirm = await fullDecode(localPath, { timeoutMs: 300000 });
+        if (confirm.pass) {
+          // Tier 1/2 was a false positive (e.g. -ss tail artifact).
+          markEpisodeFileVerified(ep.episodeFileId, 'valid', { runtime: probeResult.actualDurationSec, details: 'confirmed clean via full decode' });
+          actions.push({
+            episodeId: ep.id,
+            season: ep.seasonNumber,
+            episode: ep.episodeNumber,
+            action: 'integrity_confirmed_clean',
+            details: `Tail probe flagged this file, full decode passed (${probeResult.reason}) - no action`,
+          });
+          continue;
         }
-
-        actions.push({
-          episodeId: ep.id,
-          season: ep.seasonNumber,
-          episode: ep.episodeNumber,
-          action: 'remediated_corrupt_file',
-          details: `${probeResult.reason}: ${probeResult.details}. Deleted and queued re-search.`,
-          apiStatus: deleteStatus,
+        clearVerifiedFile(ep.episodeFileId);
+        const { startRemediation } = await import('./remediation.js');
+        const row = await startRemediation({
+          episodeId: ep.id, seriesId,
+          showTitle: seriesTitle || '',
+          season: ep.seasonNumber, episode: ep.episodeNumber,
+          oldFileId: ep.episodeFileId,
+          reason: `${probeResult.reason}: ${probeResult.details}; confirm decode: ${confirm.error}`,
         });
+        if (row) {
+          actions.push({
+            episodeId: ep.id,
+            season: ep.seasonNumber,
+            episode: ep.episodeNumber,
+            action: 'remediation_started',
+            details: `Confirmed corrupt (${confirm.error}). Keeping current file, searching for verified replacement.`,
+          });
+        } else if (!process.env.DOWNLOADS_DIR) {
+          actions.push({
+            episodeId: ep.id,
+            season: ep.seasonNumber,
+            episode: ep.episodeNumber,
+            action: 'remediated_corrupt_file',
+            details: `${probeResult.reason}: ${probeResult.details}. Fallback delete-first (no downloads mount).`,
+          });
+        }
       } else {
         // notify_only
         markEpisodeFileVerified(ep.episodeFileId, 'corrupt', { runtime: probeResult.actualDurationSec, details: probeResult.details });
@@ -395,4 +417,28 @@ export async function searchEpisode(episodeId) {
     name: 'EpisodeSearch',
     episodeIds: [episodeId],
   });
+}
+
+// --- Remediation loop helpers ---
+
+export async function getQueueRecords() {
+  const data = await sonarrReq('GET', '/queue?pageSize=500&includeEpisode=true');
+  return data?.records ?? (Array.isArray(data) ? data : []);
+}
+
+export async function deleteQueueItem(queueId, { removeFromClient = true, blocklist = true } = {}) {
+  const q = `removeFromClient=${removeFromClient}&blocklist=${blocklist}`;
+  return sonarrReq('DELETE', `/queue/${queueId}?${q}`);
+}
+
+export async function manualImportEpisode({ outputPath, episodeId }) {
+  return sonarrReq('POST', '/command', {
+    name: 'DownloadedEpisodesScan',
+    path: outputPath,
+    episodeIds: [episodeId],
+  });
+}
+
+export async function getEpisodeDetail(episodeId) {
+  return sonarrReq('GET', `/episode/${episodeId}`);
 }

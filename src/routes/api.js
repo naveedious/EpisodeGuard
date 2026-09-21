@@ -3,7 +3,8 @@ import { getEpisodeFile } from '../sonarr.js';
 import fs from 'fs';
 import { Router } from 'express';
 import { createRequire } from 'module';
-import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered } from '../db.js';
+import { getAllSettings, setSettings, getDashboardStats, getRecentActivity, getActivityFiltered,
+         getRemediations, resetRemediation } from '../db.js';
 import { getPlayingEpisodes } from '../tautulli.js';
 import { getJellyfinSessions } from '../jellyfin.js';
 import { state, restartPolling, handleWebhookTrigger } from '../watcher.js';
@@ -26,6 +27,19 @@ router.get('/status', (req, res) => {
     isRunning: state.isRunning, lastError: state.lastError, webhookEnabled: state.webhookEnabled,
     lastWebhookAt: state.lastWebhookAt,
   });
+});
+
+router.get('/remediation', (req, res) => {
+  res.json(getRemediations());
+});
+
+router.post('/remediation/:episodeId/reset', (req, res) => {
+  const id = parseInt(req.params.episodeId, 10);
+  if (!getRemediations().some(r => r.episode_id === id)) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  resetRemediation(id);
+  res.json({ ok: true });
 });
 
 router.get('/dashboard', async (req, res) => {

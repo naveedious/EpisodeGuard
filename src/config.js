@@ -9,6 +9,10 @@ export const env = {
   secretKey:      process.env.SECRET_KEY,
   appUrl:         (process.env.APP_URL ?? 'http://localhost:8988').replace(/\/$/, ''),
   dataDir:        process.env.DATA_DIR ?? '/data',
+  downloadsDir:   process.env.DOWNLOADS_DIR || '',
+  remediationMaxAttempts: parseInt(process.env.REMEDIATION_MAX_ATTEMPTS ?? '3', 10),
+  remediationQueueTimeoutHours: parseInt(process.env.REMEDIATION_QUEUE_TIMEOUT_HOURS ?? '6', 10),
+  remediationSearchingTimeoutHours: parseInt(process.env.REMEDIATION_SEARCHING_TIMEOUT_HOURS ?? '24', 10),
   port:           parseInt(process.env.PORT ?? '8988', 10),
 };
 
