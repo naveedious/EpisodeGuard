@@ -130,6 +130,10 @@ async function tickVerifying(rem) {
     setRemediationState(rem.episode_id, 'importing', { details: `verified ${record.outputPath}` });
     return;
   }
+  if (decoded.timeout) {
+    console.error('[remediation] replacement decode timed out - inconclusive, retrying next tick:', rem.episode_id);
+    return; // stay verifying; attempts untouched; verifying time bound still protects
+  }
   try { await deleteQueueItem(record.id, { removeFromClient: true, blocklist: true }); } catch {}
   await attemptFailed(rem, `replacement decode failed: ${decoded.error}`);
 }
@@ -173,6 +177,10 @@ async function tickImporting(rem) {
     await waitForStableFile(local, { intervalMs: 5000, checks: 2, maxWaitMs: 120000 });
   } catch { return; }
   const decoded = await fullDecode(local, { timeoutMs: 900000 });
+  if (decoded.timeout) {
+    console.error('[remediation] post-import decode timed out - inconclusive, re-verifying next tick:', rem.episode_id);
+    return; // stay importing; re-verify on next tick
+  }
   if (decoded.pass) {
     setRemediationState(rem.episode_id, 'swapped', { details: 'replacement verified on disk' });
     logAction(rem, 'remediation_swapped', 'Replacement downloaded, verified clean, and imported. Old corrupt file replaced.');
