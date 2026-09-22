@@ -218,6 +218,18 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
           });
           continue;
         }
+        if (confirm.timeout) {
+          // Decode timed out (CPU contention on large files) - NOT evidence of
+          // corruption. Skip remediation; the file is re-probed on a later trigger.
+          actions.push({
+            episodeId: ep.id,
+            season: ep.seasonNumber,
+            episode: ep.episodeNumber,
+            action: 'integrity_probe_inconclusive',
+            details: 'Confirm decode timed out (not corruption evidence) - will re-verify next trigger',
+          });
+          continue;
+        }
         clearVerifiedFile(ep.episodeFileId);
         const { startRemediation } = await import('./remediation.js');
         const row = await startRemediation({

@@ -53,3 +53,13 @@ test('isIoTimeoutError matches timeout and EIO, not generic errors', () => {
   assert.equal(isIoTimeoutError(new Error('EIO: i/o error')), true);
   assert.equal(isIoTimeoutError(new Error('something else')), false);
 });
+
+test('fullDecode marks timeout as inconclusive (never corruption) and doubles retry timeout', async () => {
+  const file = makeMedia(tmpDir(), 'slow.mp4');
+  // 1ms is far below real decode time -> first attempt killed by timeout;
+  // retry gets the doubled timeout (2ms), still killed -> inconclusive.
+  const r = await fullDecode(file, { timeoutMs: 1 });
+  assert.equal(r.pass, false);
+  assert.equal(r.timeout, true);
+  assert.equal(r.retried, true);
+});

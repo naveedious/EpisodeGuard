@@ -27,8 +27,9 @@ async function decodeOnce(filePath, timeoutMs) {
 }
 
 /**
- * Full-stream decode. Retries once on timeout/IO errors (flaky disk, sleeping drive)
+ * Full-stream decode. Retries once on timeout/IO errors with a doubled timeout
  * before declaring failure; such retries are NOT corruption evidence.
+ * Result.timeout === true means "inconclusive (timed out)", never "corrupt".
  */
 export async function fullDecode(filePath, { timeoutMs = 120000, retryIoOnce = true } = {}) {
   try {
@@ -37,12 +38,14 @@ export async function fullDecode(filePath, { timeoutMs = 120000, retryIoOnce = t
     return { pass: false, error: `File not found or unreadable: ${err.message}`, retried: false };
   }
   const first = await decodeOnce(filePath, timeoutMs);
-  if (first.pass) return { pass: true, error: null, retried: false };
+  if (first.pass) return { pass: true, error: null, retried: false, timeout: false };
   if (retryIoOnce && first.ioTimeout) {
-    const second = await decodeOnce(filePath, timeoutMs);
-    return { pass: second.pass, error: second.error, retried: true };
+    // Retry with a doubled timeout: slow CPU + large files is the common
+    // cause, and a timeout is NOT corruption evidence (Taskmaster S22E03).
+    const second = await decodeOnce(filePath, timeoutMs * 2);
+    return { pass: second.pass, error: second.error, retried: true, timeout: !second.pass && !!second.ioTimeout };
   }
-  return { pass: false, error: first.error, retried: false };
+  return { pass: false, error: first.error, retried: false, timeout: !!first.ioTimeout };
 }
 
 /**
