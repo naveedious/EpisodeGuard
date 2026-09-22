@@ -204,7 +204,7 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
         // decode confirm and go straight to remediation.
         const { fullDecode } = await import('./decoder.js');
         const confirm = localPath
-          ? await fullDecode(localPath, { timeoutMs: 300000 })
+          ? await fullDecode(localPath, { timeoutMs: 900000 })
           : { pass: false, error: 'local file not mounted - decode confirm skipped' };
         if (confirm.pass) {
           // Tier 1/2 was a false positive (e.g. -ss tail artifact).

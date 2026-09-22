@@ -125,7 +125,7 @@ async function tickVerifying(rem) {
     return; // still extracting — keep waiting until timeout
   }
 
-  const decoded = await fullDecode(local, { timeoutMs: 300000 });
+  const decoded = await fullDecode(local, { timeoutMs: 900000 });
   if (decoded.pass) {
     setRemediationState(rem.episode_id, 'importing', { details: `verified ${record.outputPath}` });
     return;
@@ -172,7 +172,7 @@ async function tickImporting(rem) {
   try {
     await waitForStableFile(local, { intervalMs: 5000, checks: 2, maxWaitMs: 120000 });
   } catch { return; }
-  const decoded = await fullDecode(local, { timeoutMs: 300000 });
+  const decoded = await fullDecode(local, { timeoutMs: 900000 });
   if (decoded.pass) {
     setRemediationState(rem.episode_id, 'swapped', { details: 'replacement verified on disk' });
     logAction(rem, 'remediation_swapped', 'Replacement downloaded, verified clean, and imported. Old corrupt file replaced.');
