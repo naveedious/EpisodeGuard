@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveLocalPath, evaluateIntegrity } from '../src/prober.js';
+import { probeMediaFile, resolveLocalPath, evaluateIntegrity, runTailDecode } from '../src/prober.js';
+
+
 
 test('resolveLocalPath correctly rewrites prefixes', () => {
   const sonarrPath = '/data/TV/Breaking Bad/Season 01/S01E01.mkv';
@@ -51,4 +53,17 @@ test('evaluateIntegrity checks duration tolerance and stream errors', () => {
   });
   assert.equal(corrupt.valid, false);
   assert.equal(corrupt.reason, 'corrupt_stream');
+});
+
+test('runTailDecode retries on timeout with doubled timeout, passes stderr errors through', async () => {
+  let calls = 0;
+  const seen = [];
+  const killed = (t) => Object.assign(new Error('killed'), { killed: true });
+  const fake = async (args, opts) => { calls += 1; seen.push(opts.timeout); throw killed(); };
+  const r = await runTailDecode(fake, ['-v', 'error'], 1000);
+  assert.match(r, /probe timeout after retry \(1000ms then 2000ms\)/);
+  assert.deepEqual(seen, [1000, 2000]);
+  assert.equal(await runTailDecode(async () => null, [], 1000), null);
+  const io = Object.assign(new Error('io fail'), { killed: false, stderr: 'boomed' });
+  assert.match(await runTailDecode(async () => { throw io; }, [], 1000), /boomed/);
 });
