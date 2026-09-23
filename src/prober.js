@@ -53,6 +53,28 @@ export function evaluateIntegrity({ actualDurationSec, expectedRuntimeSec, toler
 }
 
 /**
+ * Tail decode with one timeout-retry. A killed probe is CPU contention, not
+ * corruption evidence; retry with a doubled timeout before flagging.
+ * @returns {string|null} null on success, else failure text for evaluation.
+ */
+export async function runTailDecode(exec, args, timeoutMs) {
+  try {
+    await exec(args, { timeout: timeoutMs, maxBuffer: 512 * 1024 });
+    return null;
+  } catch (err) {
+    if (!err.killed) return err.stderr || err.message;
+    try {
+      await exec(args, { timeout: timeoutMs * 2, maxBuffer: 512 * 1024 });
+      return null;
+    } catch (err2) {
+      return err2.killed
+        ? `probe timeout after retry (${timeoutMs}ms then ${timeoutMs * 2}ms)`
+        : (err2.stderr || err2.message);
+    }
+  }
+}
+
+/**
  * Probes media file with ffprobe for duration and ffmpeg for tail decode check.
  * Strictly bounded in memory and execution time.
  */
@@ -106,22 +128,12 @@ export async function probeMediaFile(filePath, {
   let streamError = null;
   if (actualDurationSec && actualDurationSec > 5) {
     const seekSec = Math.max(0, Math.floor(actualDurationSec - tailSeconds));
-    try {
-      // Decode last N seconds to null
-      await execFileAsync('ffmpeg', [
-        '-v', 'error',
-        '-ss', String(seekSec),
-        '-i', filePath,
-        '-f', 'null',
-        '-',
-      ], {
-        timeout: timeoutMs,
-        maxBuffer: 512 * 1024,
-      });
-    } catch (err) {
-      // Non-empty stderr or error return
-      streamError = err.stderr || err.message;
-    }
+    // Decode last N seconds to null (retries once on timeout)
+    streamError = await runTailDecode(
+      execFileAsync,
+      ['-v', 'error', '-ss', String(seekSec), '-i', filePath, '-f', 'null', '-'],
+      timeoutMs,
+    );
   }
 
   const evalResult = evaluateIntegrity({

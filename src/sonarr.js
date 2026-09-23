@@ -196,7 +196,8 @@ export async function ensureUpcomingEpisodes(seriesId, season, episode, preloade
     }
 
     if (probeResult && !probeResult.valid) {
-      console.error(`[integrity] ERROR: Corrupt episode detected S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${probeResult.reason} - ${probeResult.details}`);
+      // Not corruption evidence yet - only the full-decode confirm decides.
+      console.warn(`[integrity] tail probe flagged S${pad(ep.seasonNumber)}E${pad(ep.episodeNumber)}: ${probeResult.reason} - ${probeResult.details}; running confirm decode`);
       
       if (integrityMode === 'auto_remediate') {
         // Confirm pass: full decode before anything is deleted (spec).
